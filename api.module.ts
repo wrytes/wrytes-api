@@ -7,6 +7,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ApiService } from 'api.service';
 import { Storj } from 'storj/storj.s3.service';
 import { TelegramService } from 'telegram/telegram.service';
+import { WalletService } from 'wallet/wallet.service';
 
 // CONTROLLER IMPORTS
 
@@ -16,6 +17,6 @@ import { TelegramService } from 'telegram/telegram.service';
 	// controllers: [
 
 	// ],
-	providers: [Storj, TelegramService, ApiService],
+	providers: [Storj, WalletService, TelegramService, ApiService],
 })
 export class AppModule {}
