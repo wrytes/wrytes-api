@@ -8,12 +8,13 @@ import { ApiService } from 'api.service';
 import { Storj } from 'storj/storj.s3.service';
 import { TelegramService } from 'telegram/telegram.service';
 import { WalletService } from 'wallet/wallet.service';
+import { DockerModule } from './docker/docker.module';
 
 // CONTROLLER IMPORTS
 
 // APP MODULE
 @Module({
-	imports: [ConfigModule.forRoot(), ScheduleModule.forRoot()],
+	imports: [ConfigModule.forRoot(), ScheduleModule.forRoot(), DockerModule],
 	// controllers: [
 
 	// ],
