@@ -3,9 +3,9 @@
 	"version": "0.0.1",
 	"private": false,
 	"license": "MIT",
-	"main": "./distnpm/index.js",
-	"module": "./distnpm/index.mjs",
-	"types": "./distnpm/index.d.ts",
+	"main": "./exports/dist/index.js",
+	"module": "./exports/dist/index.mjs",
+	"types": "./exports/dist/index.d.ts",
 	"homepage": "https://api.wrytlabs.io",
 	"repository": {
 		"url": "git+https://github.com/wrytlabs/api.git"

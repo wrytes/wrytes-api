@@ -1,6 +1,6 @@
 import { CONFIG } from 'api.config';
 import { Subscription } from 'telegram/dtos/groups.dto';
-import { AppUrl } from 'utils/func-helper';
+import { AppUrl } from 'utils/url-helper';
 
 export function HelpMessage(group: string, handles: string[], subs: Subscription): string {
 	const chain = CONFIG.chain;

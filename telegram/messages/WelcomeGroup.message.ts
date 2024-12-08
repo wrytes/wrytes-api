@@ -1,5 +1,5 @@
 import { CONFIG } from 'api.config';
-import { AppUrl } from 'utils/func-helper';
+import { AppUrl } from 'utils/url-helper';
 
 export function WelcomeGroupMessage(group: string | number, handles: string[]): string {
 	const chain = CONFIG.chain;
