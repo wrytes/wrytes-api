@@ -51,7 +51,7 @@ CMD ["bash", "-c", "${options.run ?? 'yarn run start'}"]
 		return stream;
 	}
 
-	async buildImageFromStream(streamContent: Readable, tag: string) {
+	async buildImageFromStream(streamContent: Readable, tag: string): Promise<string | any> {
 		return new Promise((resolve, reject) => {
 			this.docker.buildImage(
 				streamContent,
@@ -73,7 +73,7 @@ CMD ["bash", "-c", "${options.run ?? 'yarn run start'}"]
 		});
 	}
 
-	async buildImage(options: CreateDockerfileOptions, tag: string) {
+	async buildImage(options: CreateDockerfileOptions, tag: string): Promise<string> {
 		const stream = this.createTarStream(this.createDockerfile(options));
 		return this.buildImageFromStream(stream, tag);
 	}
