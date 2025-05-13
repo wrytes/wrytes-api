@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DockerClient } from './docker.client.service';
-import { CreateDockerfileOptions } from './docker.build.types';
+import { CreateDockerfileOptions, CreateImageOptions } from './docker.build.types';
 import { Readable } from 'stream';
 import Tar from 'tar-stream';
 
@@ -17,10 +17,6 @@ FROM ${options.image}
 
 ${env.join('\n')}
 ENV DOCKER_APP_HOME=/app
-
-# install packages and rm apt lists
-RUN apt-get update && apt-get install -y git
-RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR $DOCKER_APP_HOME
 
@@ -73,8 +69,8 @@ CMD ["bash", "-c", "${options.run ?? 'yarn run start'}"]
 		});
 	}
 
-	async buildImage(options: CreateDockerfileOptions, tag: string): Promise<string> {
+	async buildImage(options: CreateImageOptions): Promise<string> {
 		const stream = this.createTarStream(this.createDockerfile(options));
-		return this.buildImageFromStream(stream, tag);
+		return this.buildImageFromStream(stream, options.tag);
 	}
 }
