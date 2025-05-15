@@ -5,6 +5,7 @@ import { zeroAddress } from 'viem';
 @Injectable()
 export class AuthService {
 	constructor(private jwtService: JwtService) {}
+
 	async signIn(message: string, signature: string): Promise<{ access_token: string }> {
 		if (message != signature) {
 			throw new UnauthorizedException();

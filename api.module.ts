@@ -7,18 +7,18 @@ import { ConfigModule } from '@nestjs/config';
 import { ApiService } from 'api.service';
 import { Storj } from 'storj/storj.s3.service';
 import { TelegramService } from 'telegram/telegram.service';
-import { WalletService } from 'wallet/wallet.service';
 import { DockerModule } from './docker/docker.module';
 import { AuthModule } from 'auth/auth.module';
+import { WalletModule } from 'wallet/wallet.module';
 
 // CONTROLLER IMPORTS
 
 // APP MODULE
 @Module({
-	imports: [ConfigModule.forRoot(), ScheduleModule.forRoot(), AuthModule, DockerModule],
+	imports: [ConfigModule.forRoot(), ScheduleModule.forRoot(), AuthModule, WalletModule, DockerModule],
 	// controllers: [
 
 	// ],
-	providers: [Storj, WalletService, TelegramService, ApiService],
+	providers: [Storj, TelegramService, ApiService],
 })
 export class AppModule {}
