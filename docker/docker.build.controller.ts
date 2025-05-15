@@ -2,12 +2,12 @@ import { Controller, Get, Query } from '@nestjs/common';
 import { ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { DockerBuildService } from './docker.build.service';
 
-@ApiTags('Docker Build Controller')
+@ApiTags('Docker Controller')
 @Controller('docker')
 export class DockerBuildController {
 	constructor(private readonly docker: DockerBuildService) {}
 
-	@Get('/image/create')
+	@Get('/build')
 	@ApiResponse({
 		description: '',
 	})
