@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { isAddress, isHex, zeroAddress } from 'viem';
 import { WalletService } from 'wallet/wallet.service';
@@ -30,7 +30,7 @@ export class AuthService {
 		const findValid = messageSplit.findIndex((i) => i == 'valid:');
 		const findExpired = messageSplit.findIndex((i) => i == 'expired:');
 
-		if ([findAddress, findValid, findExpired].includes(-1)) return { error: 'Message is missing property' };
+		if ([findAddress, findValid, findExpired].includes(-1)) throw new BadRequestException('Property is missing in message');
 
 		const input = {
 			address: messageSplit.at(findAddress + 1),
@@ -38,21 +38,18 @@ export class AuthService {
 			expired: Number(messageSplit.at(findExpired + 1)),
 		};
 
-		if (!isAddress(input.address) || input.address == zeroAddress) return { error: 'Address is not valid' };
-		if (isNaN(input.valid) || input.valid > Date.now()) return { error: 'Valid timestamp is not valid' };
-		if (isNaN(input.expired) || input.expired < Date.now()) return { error: 'Expired timestamp is not valid' };
+		if (!isAddress(input.address) || input.address == zeroAddress) throw new BadRequestException('Address is not valid');
+		if (isNaN(input.valid) || input.valid > Date.now()) throw new BadRequestException('Valid timestamp is not valid');
+		if (isNaN(input.expired) || input.expired < Date.now()) throw new BadRequestException('Expired timestamp is not valid');
 
 		const messageOriginal = this.createMessage({ address: input.address }).split(' ').slice(0, findAddress).join(' ');
 		const messageParsed = messageSplit.slice(0, findAddress).join(' ');
 
 		// verify message
-		if (messageOriginal != messageParsed)
-			return {
-				error: 'Message is not valid',
-			};
+		if (messageOriginal != messageParsed) throw new BadRequestException('Message is not valid');
 
 		// verify signature input
-		if (!isHex(signature)) return { error: 'Signature is not hex type: 0x...' };
+		if (!isHex(signature)) throw new BadRequestException('Signature is not hex type: 0x...');
 
 		// verify signature
 		try {
@@ -67,7 +64,7 @@ export class AuthService {
 				throw new UnauthorizedException();
 			}
 		} catch (e) {
-			return { error: 'Signature is not valid' };
+			throw new UnauthorizedException();
 		}
 
 		// create payload and return token

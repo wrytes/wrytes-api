@@ -13,12 +13,10 @@ export class WalletService {
 		if (!process.env.BACKEND_WALLET_SEED) throw new Error('BACKEND_WALLET_SEED not available');
 		this.account = mnemonicToAccount(process.env.BACKEND_WALLET_SEED, { path: `m/44'/60'/0'/0/0/0` });
 		this.address = this.account.address;
-
 		this.logger.warn(`Wallet Address: ${this.address}`);
 	}
 
 	async verifySignature({ message, signature, expectedAddress }: VerifySignatureOptions): Promise<boolean> {
-		console.log({ message, signature, expectedAddress });
 		const recoveredAddress = await recoverMessageAddress({
 			message,
 			signature,

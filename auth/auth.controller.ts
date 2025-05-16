@@ -3,12 +3,14 @@ import { AuthService } from './auth.service';
 import { ApiResponse, ApiTags } from '@nestjs/swagger';
 import { CreateMessageDto } from './dtos/CreateMessage.dto';
 import { SignInDto } from './dtos/SignIn.dto';
+import { Public } from './decorators/public.decorator';
 
 @ApiTags('Auth Controller')
 @Controller('auth')
 export class AuthController {
 	constructor(private authService: AuthService) {}
 
+	@Public()
 	@ApiResponse({
 		description: '',
 	})
@@ -17,6 +19,7 @@ export class AuthController {
 		return this.authService.createMessage({ address, expired, valid });
 	}
 
+	@Public()
 	@ApiResponse({
 		description: '',
 	})
