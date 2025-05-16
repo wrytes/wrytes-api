@@ -7,11 +7,14 @@ export class SignInDto {
 		this.signature = '';
 	}
 
-	@ApiProperty({ example: '', description: '' })
+	@ApiProperty({
+		example: 'Signing this message confirms your control over the wallet address: ${address} valid: ${valid} expired: ${expired}',
+		description: '',
+	})
 	@IsString()
 	message: string;
 
-	@ApiProperty({ example: Date.now(), description: '' })
+	@ApiProperty({ example: '0x...', description: '' })
 	@IsString()
 	signature: string;
 }
