@@ -10,14 +10,17 @@ export class DockerClient extends Dockerode {
 		const socketPath: string = process.env.SOCKETPATH || '/var/run/docker.sock';
 		super({ socketPath });
 
-		this.swarmInspect()
-			.then((e) => {
-				this.logger.warn(`Swarm detected. ID: ${e.ID}`);
+		this.info()
+			.then(async (d) => {
+				const id = d?.Swarm?.Cluster?.ID;
+
+				if (id) {
+					this.logger.warn(`Swarm detected. ID: ${id}`);
+				} else {
+					const init = await this.swarmInit({ ListenAddr: '0.0.0.0:2377' });
+					this.logger.warn(`Swarm initialized. ID: ${init}`);
+				}
 			})
-			.catch(async (error) => {
-				this.logger.error(error.json.message);
-				const init = await this.swarmInit({ ListenAddr: '0.0.0.0:2377' });
-				this.logger.warn(`Swarm initialized. ID: ${init}`);
-			});
+			.catch((error) => this.logger.error(error));
 	}
 }

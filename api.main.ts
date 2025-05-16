@@ -9,6 +9,8 @@ async function bootstrap() {
 		.setTitle(process.env.npm_package_name)
 		.setDescription('The API description')
 		.setVersion(process.env.npm_package_version)
+		.addBearerAuth()
+		.addSecurityRequirements('bearer')
 		.build();
 	const document = SwaggerModule.createDocument(api, config);
 	SwaggerModule.setup('/', api, document, {

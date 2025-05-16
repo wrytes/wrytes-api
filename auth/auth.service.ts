@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { isAddress, isHex, zeroAddress } from 'viem';
 import { WalletService } from 'wallet/wallet.service';
@@ -42,11 +42,16 @@ export class AuthService {
 		if (isNaN(input.valid) || input.valid > Date.now()) throw new BadRequestException('Valid timestamp is not valid');
 		if (isNaN(input.expired) || input.expired < Date.now()) throw new BadRequestException('Expired timestamp is not valid');
 
-		const messageOriginal = this.createMessage({ address: input.address }).split(' ').slice(0, findAddress).join(' ');
+		const messageTemplate = this.createMessage({ address: input.address }).split(' ');
+		const messageOriginal = messageTemplate.slice(0, findAddress).join(' ');
 		const messageParsed = messageSplit.slice(0, findAddress).join(' ');
 
 		// verify message
-		if (messageOriginal != messageParsed) throw new BadRequestException('Message is not valid');
+		if (messageOriginal != messageParsed || messageTemplate.length != messageSplit.length)
+			throw new BadRequestException('Message is not valid');
+
+		// @dev: optional add verify whitelisted address or linked to an AccessManager
+		// TODO: add AccessManager verification from onChain data or indexer (?)
 
 		// verify signature input
 		if (!isHex(signature)) throw new BadRequestException('Signature is not hex type: 0x...');
@@ -61,13 +66,13 @@ export class AuthService {
 
 			// is not valid?
 			if (!isValid) {
-				throw new UnauthorizedException();
+				throw new BadRequestException('Signature is not valid');
 			}
 		} catch (e) {
-			throw new UnauthorizedException();
+			throw new BadRequestException('Signature is not valid');
 		}
 
-		// create payload and return token
+		// create payload and return access token
 		return this.signPayload({ address: input.address });
 	}
 

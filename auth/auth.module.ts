@@ -16,7 +16,7 @@ import { AuthGuard } from './auth.guard';
 			inject: [WalletService],
 			useFactory: async (wallet: WalletService) => {
 				return {
-					secret: wallet.address, // FIXME: compute with signature function
+					secret: wallet.getJwtSecret(),
 					signOptions: { expiresIn: '4h' },
 				};
 			},
