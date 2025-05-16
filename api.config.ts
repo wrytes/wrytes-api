@@ -2,9 +2,6 @@ import { ApolloClient, InMemoryCache } from '@apollo/client/core';
 import { http, createPublicClient, Chain } from 'viem';
 import { mainnet, polygon } from 'viem/chains';
 
-import * as dotenv from 'dotenv';
-dotenv.config();
-
 // Verify environment
 if (process.env.RPC_URL_MAINNET === undefined) throw new Error('RPC_URL_MAINNET not available');
 if (process.env.RPC_URL_POLYGON === undefined) throw new Error('RPC_URL_POLYGON not available');

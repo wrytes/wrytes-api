@@ -14,3 +14,15 @@ export const formatCurrency = (value: string | number, minimumFractionDigits = 0
 
 	return formatter.format(amount);
 };
+
+export const formatMinutes = (minute: number) => {
+	return minute * 60 * 1000;
+};
+
+export const formatHours = (hour: number) => {
+	return hour * 60 * 60 * 1000;
+};
+
+export const formatDays = (day: number) => {
+	return day * 24 * 60 * 60 * 1000;
+};

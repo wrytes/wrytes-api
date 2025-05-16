@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { recoverMessageAddress } from 'viem';
 import { mnemonicToAccount, HDAccount, Address } from 'viem/accounts';
+import { VerifySignatureOptions } from './wallet.types';
 
 @Injectable()
 export class WalletService {
@@ -15,14 +17,13 @@ export class WalletService {
 		this.logger.warn(`Wallet Address: ${this.address}`);
 	}
 
-	// @Interval(2000)
-	// async verifyMembership() {
-	// 	const asdf = await VIEM_CONFIG.readContract({
-	// 		address: ADDRESS[VIEM_CONFIG.chain.id].backendWallet,
-	// 		abi: BackendWalletABI,
-	// 		functionName: 'checkAtLeastMember',
-	// 		args: ['0x...'],
-	// 	});
-	// 	console.log(asdf);
-	// }
+	async verifySignature({ message, signature, expectedAddress }: VerifySignatureOptions): Promise<boolean> {
+		console.log({ message, signature, expectedAddress });
+		const recoveredAddress = await recoverMessageAddress({
+			message,
+			signature,
+		});
+
+		return recoveredAddress.toLowerCase() === expectedAddress.toLowerCase();
+	}
 }

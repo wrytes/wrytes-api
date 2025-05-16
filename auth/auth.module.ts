@@ -14,8 +14,8 @@ import { WalletModule } from 'wallet/wallet.module';
 			inject: [WalletService],
 			useFactory: async (wallet: WalletService) => {
 				return {
-					secret: wallet.address,
-					signOptions: { expiresIn: '60s' },
+					secret: wallet.address, // FIXME: compute with signature function
+					signOptions: { expiresIn: '4h' },
 				};
 			},
 		}),
