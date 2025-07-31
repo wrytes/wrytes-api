@@ -80,12 +80,12 @@ export const DATABASE_CONFIG: DatabaseConfigType = {
 	primary: process.env.DATABASE_URL,
 	fallback: process.env.DATABASE_FALLBACK_URL,
 	dockerContainer: {
-		name: 'wrytlabs-postgres-dev',
-		image: 'postgres:15-alpine',
-		port: '5433',
-		database: 'wrytlabs_dev',
-		user: 'wrytlabs',
-		password: 'dev_password',
+		name: process.env.DOCKER_DB_NAME || 'wrytlabs-postgres-dev',
+		image: process.env.DOCKER_DB_IMAGE || 'postgres:15-alpine',
+		port: process.env.DOCKER_DB_PORT || '5433',
+		database: process.env.DOCKER_DB_DATABASE || 'wrytlabs_dev',
+		user: process.env.DOCKER_DB_USER || 'wrytlabs',
+		password: process.env.DOCKER_DB_PASSWORD || 'dev_password',
 	},
 	connection: {
 		retryAttempts: 3,

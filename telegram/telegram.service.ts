@@ -118,7 +118,7 @@ export class TelegramService {
 	}
 
 	async updateTelegram() {
-		this.logger.debug('Updating updateTelegram');
+		// this.logger.debug('Updating updateTelegram');
 
 		// break if no groups are known
 		if (this.telegramGroupState?.groups == undefined) return;

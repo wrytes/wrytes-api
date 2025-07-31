@@ -22,7 +22,7 @@ export class ApiService {
 	}
 
 	async updateWorkflow() {
-		this.logger.log(`Fetched blockheight: ${this.fetchedBlockheight}`);
+		// this.logger.log(`Fetched blockheight: ${this.fetchedBlockheight}`);
 		const promises = [this.telegram.updateTelegram()];
 
 		return Promise.all(promises);
