@@ -1,0 +1,10 @@
+//// ------------------------------------------------------
+//// THIS FILE WAS AUTOMATICALLY GENERATED (DO NOT MODIFY)
+//// ------------------------------------------------------
+
+Table system_health {
+  id String [pk]
+  status String [not null]
+  timestamp DateTime [default: `now()`, not null]
+  metadata Json
+}

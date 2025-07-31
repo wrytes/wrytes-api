@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+generator dbml {
+  provider = "prisma-dbml-generator"
+  output   = "./dbml"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Health check table
+model SystemHealth {
+  id        String   @id @default(cuid())
+  status    String
+  timestamp DateTime @default(now())
+  metadata  Json?
+
+  @@map("system_health")
+}

@@ -15,6 +15,28 @@ export type ConfigType = {
 	chain: Chain;
 };
 
+// Database configuration type
+export type DatabaseConfigType = {
+	primary: string | undefined;
+	fallback: string | undefined;
+	dockerContainer: {
+		name: string;
+		image: string;
+		port: string;
+		database: string;
+		user: string;
+		password: string;
+	};
+	connection: {
+		retryAttempts: number;
+		retryDelay: number;
+		timeout: number;
+		poolSize: number;
+		dockerRetryAttempts: number;
+		dockerRetryDelay: number;
+	};
+};
+
 // Create config
 export const CONFIG: ConfigType = {
 	app: process.env.CONFIG_APP_URL || 'http://localhost:3000',
@@ -51,4 +73,26 @@ export const COINGECKO_CLIENT = (query: string) => {
 	const hasParams = query.includes('?');
 	const uri: string = `https://api.coingecko.com${query}`;
 	return fetch(`${uri}${hasParams ? '&' : '?'}${CONFIG.coingeckoApiKey}`);
+};
+
+// DATABASE CONFIG
+export const DATABASE_CONFIG: DatabaseConfigType = {
+	primary: process.env.DATABASE_URL,
+	fallback: process.env.DATABASE_FALLBACK_URL,
+	dockerContainer: {
+		name: 'wrytlabs-postgres-dev',
+		image: 'postgres:15-alpine',
+		port: '5433',
+		database: 'wrytlabs_dev',
+		user: 'wrytlabs',
+		password: 'dev_password',
+	},
+	connection: {
+		retryAttempts: 3,
+		retryDelay: 5000,
+		timeout: 30000,
+		poolSize: 10,
+		dockerRetryAttempts: 12,
+		dockerRetryDelay: 10000,
+	},
 };
