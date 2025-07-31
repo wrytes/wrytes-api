@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { isAddress, isHex, zeroAddress } from 'viem';
+import { isAddress, isHex, zeroAddress, Address } from 'viem';
 import { WalletService } from 'wallet/wallet.service';
 import { AuthAccessToken, AuthPayload, CreateMessageOptions, SignInOptions } from './auth.types';
 import { formatMinutes } from 'utils/format';
@@ -8,96 +8,188 @@ import { UserService } from '../users/users.service';
 
 @Injectable()
 export class AuthService {
+	private readonly logger = new Logger(AuthService.name);
+
 	constructor(
 		private readonly wallet: WalletService,
-		private jwtService: JwtService,
+		private readonly jwtService: JwtService,
 		private readonly userService: UserService
 	) {}
 
-	createMessage({ address, valid, expired }: CreateMessageOptions) {
+	createMessage({ address, valid, expired }: CreateMessageOptions): string {
+		this.logger.debug(`Creating message for address: ${address}`);
+
+		// Validate address format
+		if (!isAddress(address)) {
+			throw new BadRequestException(`Invalid Ethereum address format: ${address}`);
+		}
+
+		if (address === zeroAddress) {
+			throw new BadRequestException('Zero address is not allowed');
+		}
+
 		const now = Date.now();
 
-		// input validation
-		if (valid == undefined || valid < now) valid = now;
-		if (expired == undefined || expired < now) expired = now + formatMinutes(10);
+		// Set default validity and expiration times
+		if (valid === undefined || valid < now) {
+			valid = now;
+		}
+		if (expired === undefined || expired < now) {
+			expired = now + formatMinutes(10); // 10 minutes default expiration
+		}
 
-		// return message to sign
-		return `Signing this message confirms your control over the wallet address: ${address} valid: ${valid} expired: ${expired}`;
+		// Ensure expired is after valid
+		if (expired <= valid) {
+			throw new BadRequestException('Expiration time must be after valid time');
+		}
+
+		const message = `Signing this message confirms your control over the wallet address: ${address} valid: ${valid} expired: ${expired}`;
+		this.logger.debug(`Generated message for ${address}`);
+
+		return message;
 	}
 
-	async signIn({ message, signature }: SignInOptions): Promise<AuthAccessToken | { error: string }> {
-		// verify message input
+	async signIn({ message, signature }: SignInOptions): Promise<AuthAccessToken> {
+		this.logger.debug('Processing sign-in request');
+
+		try {
+			// Parse and validate message structure
+			const parsedMessage = this.parseAuthMessage(message);
+
+			// Validate message timestamps
+			this.validateMessageTimestamps(parsedMessage);
+
+			// Verify message format
+			this.verifyMessageFormat(message, parsedMessage.address);
+
+			// Validate and verify signature
+			await this.verifyWalletSignature(message, signature, parsedMessage.address);
+
+			// Get or create user
+			const user = await this.getOrCreateUser(parsedMessage.address);
+
+			this.logger.log(`Successful sign-in for address: ${parsedMessage.address}`);
+
+			// Generate and return token
+			return this.signPayload({
+				address: parsedMessage.address as Address,
+				userId: user?.id,
+				username: user?.username || undefined,
+			});
+		} catch (error) {
+			this.logger.error(`Sign-in failed: ${error.message}`);
+			throw error;
+		}
+	}
+
+	private parseAuthMessage(message: string) {
 		const messageSplit = message.split(' ');
-		const findAddress = messageSplit.findIndex((i) => i == 'address:');
-		const findValid = messageSplit.findIndex((i) => i == 'valid:');
-		const findExpired = messageSplit.findIndex((i) => i == 'expired:');
+		const findAddress = messageSplit.findIndex((i) => i === 'address:');
+		const findValid = messageSplit.findIndex((i) => i === 'valid:');
+		const findExpired = messageSplit.findIndex((i) => i === 'expired:');
 
-		if ([findAddress, findValid, findExpired].includes(-1)) throw new BadRequestException('Property is missing in message');
+		if ([findAddress, findValid, findExpired].includes(-1)) {
+			throw new BadRequestException('Required properties missing in message (address, valid, expired)');
+		}
 
-		const input = {
-			address: messageSplit.at(findAddress + 1),
-			valid: Number(messageSplit.at(findValid + 1)),
-			expired: Number(messageSplit.at(findExpired + 1)),
-		};
+		const address = messageSplit.at(findAddress + 1);
+		const valid = Number(messageSplit.at(findValid + 1));
+		const expired = Number(messageSplit.at(findExpired + 1));
 
-		if (!isAddress(input.address) || input.address == zeroAddress) throw new BadRequestException('Address is not valid');
-		if (isNaN(input.valid) || input.valid > Date.now()) throw new BadRequestException('Valid timestamp is not valid');
-		if (isNaN(input.expired) || input.expired < Date.now()) throw new BadRequestException('Expired timestamp is not valid');
+		if (!address || !isAddress(address) || address === zeroAddress) {
+			throw new BadRequestException('Invalid or missing wallet address');
+		}
 
-		const messageTemplate = this.createMessage({ address: input.address }).split(' ');
+		if (isNaN(valid) || isNaN(expired)) {
+			throw new BadRequestException('Invalid timestamp format');
+		}
+
+		return { address, valid, expired };
+	}
+
+	private validateMessageTimestamps(parsedMessage: { valid: number; expired: number }) {
+		const now = Date.now();
+
+		if (parsedMessage.valid > now) {
+			throw new BadRequestException('Message is not yet valid');
+		}
+
+		if (parsedMessage.expired < now) {
+			throw new BadRequestException('Message has expired');
+		}
+
+		if (parsedMessage.expired <= parsedMessage.valid) {
+			throw new BadRequestException('Invalid timestamp sequence');
+		}
+	}
+
+	private verifyMessageFormat(originalMessage: string, address: string) {
+		const messageSplit = originalMessage.split(' ');
+		const findAddress = messageSplit.findIndex((i) => i === 'address:');
+
+		// Generate expected message template for comparison
+		const messageTemplate = this.createMessage({ address: address as Address }).split(' ');
 		const messageOriginal = messageTemplate.slice(0, findAddress).join(' ');
 		const messageParsed = messageSplit.slice(0, findAddress).join(' ');
 
-		// verify message
-		if (messageOriginal != messageParsed || messageTemplate.length != messageSplit.length)
-			throw new BadRequestException('Message is not valid');
+		if (messageOriginal !== messageParsed || messageTemplate.length !== messageSplit.length) {
+			throw new BadRequestException('Message format is invalid');
+		}
+	}
 
-		// @dev: optional add verify whitelisted address or linked to an AccessManager
-		// TODO: add AccessManager verification from onChain data or indexer (?)
+	private async verifyWalletSignature(message: string, signature: string, expectedAddress: string) {
+		if (!isHex(signature)) {
+			throw new BadRequestException('Signature must be in hex format (0x...)');
+		}
 
-		// verify signature input
-		if (!isHex(signature)) throw new BadRequestException('Signature is not hex type: 0x...');
-
-		// verify signature
 		try {
 			const isValid = await this.wallet.verifySignature({
 				message,
 				signature,
-				expectedAddress: input.address,
+				expectedAddress: expectedAddress as Address,
 			});
 
-			// is not valid?
 			if (!isValid) {
-				throw new BadRequestException('Signature is not valid');
+				throw new UnauthorizedException('Invalid wallet signature');
 			}
-		} catch (e) {
-			throw new BadRequestException('Signature is not valid');
+		} catch (error) {
+			this.logger.warn(`Signature verification failed: ${error.message}`);
+			throw new UnauthorizedException('Signature verification failed');
 		}
+	}
 
-		// Get or create user in database
-		let user = await this.userService.getUserByWallet(input.address);
+	private async getOrCreateUser(walletAddress: string) {
+		try {
+			let user = await this.userService.getUserByWallet(walletAddress);
 
-		if (!user) {
-			// Auto-create user on first sign-in
-			try {
+			if (!user) {
+				this.logger.debug(`Creating new user for address: ${walletAddress}`);
 				user = await this.userService.createUser({
-					walletAddress: input.address,
+					walletAddress,
 				});
-			} catch (error) {
-				// If user creation fails, continue with basic auth
-				console.warn('Failed to create user on sign-in:', error);
-				return this.signPayload({ address: input.address });
+				this.logger.log(`New user created for address: ${walletAddress}`);
+			} else {
+				// Update last login time for existing users
+				await this.userService.updateLastLogin(user.id);
+				this.logger.debug(`Updated last login for user: ${user.id}`);
 			}
-		} else {
-			// Update last login time
-			await this.userService.updateLastLogin(user.id);
-		}
 
-		// create payload with user information and return access token
+			return user;
+		} catch (error) {
+			this.logger.error(`Failed to get or create user: ${error.message}`);
+			// For auth purposes, we can continue without user creation
+			// but log the error for monitoring
+			return null;
+		}
+	}
+
+	async generateTokenForUser(address: string, user?: any): Promise<AuthAccessToken> {
+		this.logger.debug(`Generating token for address: ${address}`);
+
 		return this.signPayload({
-			address: input.address,
-			userId: user.id,
-			username: user.username || undefined,
+			address: address as Address,
+			userId: user?.id,
+			username: user?.username || undefined,
 		});
 	}
 
