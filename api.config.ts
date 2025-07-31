@@ -1,22 +1,18 @@
 import { ApolloClient, InMemoryCache } from '@apollo/client/core';
 import { http, createPublicClient, Chain } from 'viem';
-import { mainnet, polygon } from 'viem/chains';
+import { mainnet } from 'viem/chains';
 
 // Verify environment
-if (process.env.RPC_URL_MAINNET === undefined) throw new Error('RPC_URL_MAINNET not available');
-if (process.env.RPC_URL_POLYGON === undefined) throw new Error('RPC_URL_POLYGON not available');
+if (process.env.ALCHEMY_RPC_KEY === undefined) throw new Error('ALCHEMY_RPC_KEY not available');
 if (process.env.COINGECKO_API_KEY === undefined) throw new Error('COINGECKO_API_KEY not available');
 
 // Config type
 export type ConfigType = {
 	app: string;
 	indexer: string;
+	alchemyRpcKey: string;
 	coingeckoApiKey: string;
 	chain: Chain;
-	network: {
-		mainnet: string;
-		polygon: string;
-	};
 };
 
 // Create config
@@ -24,11 +20,8 @@ export const CONFIG: ConfigType = {
 	app: process.env.CONFIG_APP_URL || 'http://localhost:3000',
 	indexer: process.env.CONFIG_INDEXER_URL || 'http://localhost:42069',
 	coingeckoApiKey: process.env.COINGECKO_API_KEY,
-	chain: process.env.CONFIG_CHAIN === 'mainnet' ? mainnet : polygon, // @dev: default polygon
-	network: {
-		mainnet: process.env.RPC_URL_MAINNET,
-		polygon: process.env.RPC_URL_POLYGON,
-	},
+	chain: mainnet,
+	alchemyRpcKey: process.env.ALCHEMY_RPC_KEY,
 };
 
 // Start up message
@@ -39,7 +32,7 @@ console.log(CONFIG);
 export const VIEM_CHAIN = CONFIG.chain;
 export const VIEM_CONFIG = createPublicClient({
 	chain: VIEM_CHAIN,
-	transport: http(process.env.CONFIG_CHAIN === 'mainnet' ? CONFIG.network.mainnet : CONFIG.network.polygon),
+	transport: http(`https://eth-mainnet.g.alchemy.com/v2/${CONFIG.alchemyRpcKey}`),
 	batch: {
 		multicall: {
 			wait: 200,
