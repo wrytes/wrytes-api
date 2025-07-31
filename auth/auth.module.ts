@@ -6,10 +6,16 @@ import { JwtModule } from '@nestjs/jwt';
 import { WalletModule } from 'wallet/wallet.module';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './auth.guard';
+import { RoleGuard } from './guards/role.guard';
+import { PermissionGuard } from './guards/permission.guard';
+import { UsersModule } from '../users/users.module';
+import { RolesModule } from '../roles/roles.module';
 
 @Module({
 	imports: [
 		WalletModule,
+		UsersModule,
+		RolesModule,
 		JwtModule.registerAsync({
 			global: true,
 			imports: [WalletModule],
@@ -24,11 +30,14 @@ import { AuthGuard } from './auth.guard';
 	],
 	providers: [
 		AuthService,
+		RoleGuard,
+		PermissionGuard,
 		{
 			provide: APP_GUARD,
 			useClass: AuthGuard,
 		},
 	],
 	controllers: [AuthController],
+	exports: [RoleGuard, PermissionGuard],
 })
 export class AuthModule {}

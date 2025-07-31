@@ -168,7 +168,7 @@ export class DockerDatabaseService {
 
 		try {
 			const stream = await this.dockerClient.pull(this.containerConfig.image);
-			
+
 			await new Promise((resolve, reject) => {
 				this.dockerClient.modem.followProgress(stream, (err, res) => {
 					if (err) reject(err);
@@ -192,7 +192,7 @@ export class DockerDatabaseService {
 
 		while (Date.now() - startTime < timeoutMs) {
 			checkCount++;
-			
+
 			if (await this.isContainerHealthy()) {
 				this.logger.log(`PostgreSQL container is healthy after ${Math.round((Date.now() - startTime) / 1000)}s`);
 				return true;

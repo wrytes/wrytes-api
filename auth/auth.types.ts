@@ -13,6 +13,8 @@ export type SignInOptions = {
 
 export type AuthPayload = {
 	address: Address;
+	userId?: string;
+	username?: string;
 };
 
 export type AuthAccessToken = {

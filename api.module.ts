@@ -11,12 +11,23 @@ import { DockerModule } from './docker/docker.module';
 import { AuthModule } from 'auth/auth.module';
 import { WalletModule } from 'wallet/wallet.module';
 import { DatabaseModule } from './database/database.module';
+import { UsersModule } from './users/users.module';
+import { RolesModule } from './roles/roles.module';
 
 // CONTROLLER IMPORTS
 
 // APP MODULE
 @Module({
-	imports: [ConfigModule.forRoot(), ScheduleModule.forRoot(), AuthModule, WalletModule, DockerModule, DatabaseModule],
+	imports: [
+		ConfigModule.forRoot(),
+		ScheduleModule.forRoot(),
+		WalletModule,
+		DockerModule,
+		DatabaseModule,
+		UsersModule,
+		RolesModule,
+		AuthModule,
+	],
 	// controllers: [
 
 	// ],

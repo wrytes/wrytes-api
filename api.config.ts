@@ -46,9 +46,27 @@ export const CONFIG: ConfigType = {
 	alchemyRpcKey: process.env.ALCHEMY_RPC_KEY,
 };
 
-// Start up message
-console.log(`Starting API with this config:`);
-console.log(CONFIG);
+// DATABASE CONFIG
+export const DATABASE_CONFIG: DatabaseConfigType = {
+	primary: process.env.DATABASE_URL,
+	fallback: process.env.DATABASE_FALLBACK_URL,
+	dockerContainer: {
+		name: process.env.DOCKER_DB_NAME || 'wrytlabs-postgres-dev',
+		image: process.env.DOCKER_DB_IMAGE || 'postgres:15-alpine',
+		port: process.env.DOCKER_DB_PORT || '5433',
+		database: process.env.DOCKER_DB_DATABASE || 'wrytlabs_dev',
+		user: process.env.DOCKER_DB_USER || 'wrytlabs',
+		password: process.env.DOCKER_DB_PASSWORD || 'dev_password',
+	},
+	connection: {
+		retryAttempts: 3,
+		retryDelay: 5000,
+		timeout: 30000,
+		poolSize: 10,
+		dockerRetryAttempts: 12,
+		dockerRetryDelay: 10000,
+	},
+};
 
 // VIEM CONFIG
 export const VIEM_CHAIN = CONFIG.chain;
@@ -73,26 +91,4 @@ export const COINGECKO_CLIENT = (query: string) => {
 	const hasParams = query.includes('?');
 	const uri: string = `https://api.coingecko.com${query}`;
 	return fetch(`${uri}${hasParams ? '&' : '?'}${CONFIG.coingeckoApiKey}`);
-};
-
-// DATABASE CONFIG
-export const DATABASE_CONFIG: DatabaseConfigType = {
-	primary: process.env.DATABASE_URL,
-	fallback: process.env.DATABASE_FALLBACK_URL,
-	dockerContainer: {
-		name: process.env.DOCKER_DB_NAME || 'wrytlabs-postgres-dev',
-		image: process.env.DOCKER_DB_IMAGE || 'postgres:15-alpine',
-		port: process.env.DOCKER_DB_PORT || '5433',
-		database: process.env.DOCKER_DB_DATABASE || 'wrytlabs_dev',
-		user: process.env.DOCKER_DB_USER || 'wrytlabs',
-		password: process.env.DOCKER_DB_PASSWORD || 'dev_password',
-	},
-	connection: {
-		retryAttempts: 3,
-		retryDelay: 5000,
-		timeout: 30000,
-		poolSize: 10,
-		dockerRetryAttempts: 12,
-		dockerRetryDelay: 10000,
-	},
 };

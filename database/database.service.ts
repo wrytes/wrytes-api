@@ -116,7 +116,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
 		try {
 			// Check if Docker is available
-			if (!await this.isDockerAvailable()) {
+			if (!(await this.isDockerAvailable())) {
 				this.logger.warn('Docker is not available, skipping Docker fallback');
 				return false;
 			}
@@ -160,7 +160,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
 		for (let attempt = 1; attempt <= DATABASE_CONFIG.connection.dockerRetryAttempts; attempt++) {
 			try {
-				
 				const testPrisma = new PrismaClient({
 					datasources: {
 						db: {

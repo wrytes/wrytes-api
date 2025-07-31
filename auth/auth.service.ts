@@ -4,12 +4,14 @@ import { isAddress, isHex, zeroAddress } from 'viem';
 import { WalletService } from 'wallet/wallet.service';
 import { AuthAccessToken, AuthPayload, CreateMessageOptions, SignInOptions } from './auth.types';
 import { formatMinutes } from 'utils/format';
+import { UserService } from '../users/users.service';
 
 @Injectable()
 export class AuthService {
 	constructor(
 		private readonly wallet: WalletService,
-		private jwtService: JwtService
+		private jwtService: JwtService,
+		private readonly userService: UserService
 	) {}
 
 	createMessage({ address, valid, expired }: CreateMessageOptions) {
@@ -72,8 +74,31 @@ export class AuthService {
 			throw new BadRequestException('Signature is not valid');
 		}
 
-		// create payload and return access token
-		return this.signPayload({ address: input.address });
+		// Get or create user in database
+		let user = await this.userService.getUserByWallet(input.address);
+
+		if (!user) {
+			// Auto-create user on first sign-in
+			try {
+				user = await this.userService.createUser({
+					walletAddress: input.address,
+				});
+			} catch (error) {
+				// If user creation fails, continue with basic auth
+				console.warn('Failed to create user on sign-in:', error);
+				return this.signPayload({ address: input.address });
+			}
+		} else {
+			// Update last login time
+			await this.userService.updateLastLogin(user.id);
+		}
+
+		// create payload with user information and return access token
+		return this.signPayload({
+			address: input.address,
+			userId: user.id,
+			username: user.username || undefined,
+		});
 	}
 
 	private async signPayload(payload: AuthPayload): Promise<AuthAccessToken> {
