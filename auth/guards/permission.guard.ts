@@ -20,7 +20,7 @@ export class PermissionGuard implements CanActivate {
 		const requiredPermission = this.reflector.get<RequiredPermission>('requiredPermission', context.getHandler());
 
 		if (!requiredPermission) {
-			return true;
+			return false;
 		}
 
 		const request = context.switchToHttp().getRequest();
@@ -39,7 +39,7 @@ export class PermissionGuard implements CanActivate {
 			}
 
 			// Check if user has the required permission
-			return this.roleService.hasPermission(dbUser.userRoles, requiredPermission.resource, requiredPermission.action);
+			return await this.roleService.hasPermission(dbUser.userRoles, requiredPermission.resource, requiredPermission.action);
 		} catch (error) {
 			console.error('Permission guard error:', error);
 			return false;

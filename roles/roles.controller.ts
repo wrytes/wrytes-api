@@ -118,7 +118,7 @@ export class PermissionsController {
 	@RequirePermission('permissions', 'create')
 	@ApiOperation({ 
 		summary: 'Create new permission', 
-		description: 'Creates a new permission in the system. Requires permissions:create permission' 
+		description: 'Creates a new permission in the system. Requires permissions:create permission'
 	})
 	@ApiResponse({ status: 201, description: 'Permission created successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -128,6 +128,7 @@ export class PermissionsController {
 	}
 
 	@Get()
+	@RequirePermission('permissions', 'read')
 	@ApiOperation({ 
 		summary: 'Get all permissions', 
 		description: 'Retrieves a list of all permissions available in the system' 

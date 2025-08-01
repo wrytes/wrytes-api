@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/
 import { UserService } from './users.service';
 import { UpdateProfileDto } from './dtos/UpdateProfile.dto';
 import { AssignRoleDto } from './dtos/AssignRole.dto';
-import { RequirePermission } from '../auth/decorators/require-permission.decorator';
+import { RequirePermission } from 'auth/decorators/require-permission.decorator';
 
 @ApiTags('Users')
 @Controller('users')
@@ -63,7 +63,7 @@ export class UsersController {
 		return this.userService.getUserById(id);
 	}
 
-	@Put(':id/activate')
+	@Put(':id/activate')	
 	@RequirePermission('users', 'update')
 	@ApiOperation({ summary: 'Activate user', description: 'Activates a user account, enabling them to access the system. Requires users:update permission' })
 	@ApiParam({ name: 'id', description: 'User ID' })
@@ -85,7 +85,7 @@ export class UsersController {
 		return this.userService.deactivateUser(id);
 	}
 
-	@Post(':id/roles')
+	@Post(':id/roles')	
 	@RequirePermission('roles', 'assign')
 	@ApiOperation({ summary: 'Assign role to user', description: 'Assigns a specific role to a user with optional expiration date. Requires roles:assign permission' })
 	@ApiParam({ name: 'id', description: 'User ID' })

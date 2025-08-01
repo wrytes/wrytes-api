@@ -34,7 +34,7 @@ export class RoleGuard implements CanActivate {
 			}
 
 			// Check if user has the required role
-			return this.roleService.hasRole(dbUser.userRoles, requiredRole);
+			return await this.roleService.hasRole(dbUser.userRoles, requiredRole);
 		} catch (error) {
 			console.error('Role guard error:', error);
 			return false;

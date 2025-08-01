@@ -29,15 +29,7 @@ async function main() {
 		// System administration
 		{ resource: 'system', action: 'admin', description: 'Full system administration' },
 		{ resource: 'system', action: 'monitor', description: 'Monitor system health' },
-
-		// Docker operations
-		{ resource: 'docker', action: 'build', description: 'Build Docker containers' },
-		{ resource: 'docker', action: 'deploy', description: 'Deploy containers' },
-		{ resource: 'docker', action: 'manage', description: 'Manage container lifecycle' },
-
-		// Database operations
-		{ resource: 'database', action: 'read', description: 'Read database health status' },
-		{ resource: 'database', action: 'manage', description: 'Manage database operations' },
+		{ resource: 'system', action: 'status', description: 'Get system status' },
 	];
 
 	console.log('📝 Creating permissions...');
@@ -108,11 +100,7 @@ async function main() {
 	// User gets basic read permissions
 	const userPermissions = await prisma.permission.findMany({
 		where: {
-			OR: [
-				{ resource: 'users', action: 'read' },
-				{ resource: 'system', action: 'monitor' },
-				{ resource: 'database', action: 'read' },
-			],
+			OR: [{ resource: 'system', action: 'status' }],
 		},
 	});
 
@@ -140,7 +128,7 @@ async function main() {
 				{ resource: 'roles', action: 'read' },
 				{ resource: 'roles', action: 'assign' },
 				{ resource: 'system', action: 'monitor' },
-				{ resource: 'database', action: 'read' },
+				{ resource: 'system', action: 'status' },
 			],
 		},
 	});

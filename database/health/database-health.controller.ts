@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DatabaseHealthService } from './database-health.service';
-import { DatabaseHealth, ConnectionStatus, PerformanceMetrics, MigrationStatus } from '../types/database.types';
+import { DatabaseHealth, PerformanceMetrics, MigrationStatus } from '../types/database.types';
 
 @ApiTags('Database Health')
 @Controller('health')
@@ -39,25 +39,6 @@ export class DatabaseHealthController {
 	})
 	async getDatabaseHealth(): Promise<DatabaseHealth> {
 		return this.healthService.getOverallHealth();
-	}
-
-	@Get('database/status')
-	@ApiOperation({ summary: 'Get connection status' })
-	@ApiResponse({
-		status: 200,
-		description: 'Database connection status',
-		schema: {
-			type: 'object',
-			properties: {
-				connected: { type: 'boolean' },
-				source: { type: 'string', enum: ['primary', 'fallback', 'docker'] },
-				connectionString: { type: 'string' },
-				error: { type: 'string', nullable: true },
-			},
-		},
-	})
-	async getConnectionStatus(): Promise<ConnectionStatus> {
-		return this.healthService.getConnectionStatus();
 	}
 
 	@Get('database/connections')
