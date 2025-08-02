@@ -41,6 +41,18 @@ export class UsersController {
 		return this.userService.updateProfile(req.user.userId, updateDto);
 	}
 
+	@Put(':id/profile')
+	@RequirePermission('users', 'update')
+	@ApiOperation({ summary: 'Update user profile', description: 'Updates the profile information for a specific user. Requires users:update permission' })
+	@ApiParam({ name: 'id', description: 'User ID' })
+	@ApiResponse({ status: 200, description: 'Profile updated successfully' })
+	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
+	@ApiResponse({ status: 404, description: 'User not found' })
+	@ApiResponse({ status: 400, description: 'Invalid profile data' })
+	async updateUserProfile(@Param('id') userId: string, @Body() updateDto: UpdateProfileDto) {
+		return this.userService.updateProfile(userId, updateDto);
+	}
+
 	@Get()
 	@RequirePermission('users', 'read')
 	@ApiOperation({ summary: 'Get all users', description: 'Retrieves a list of all users in the system. Requires users:read permission' })
@@ -119,4 +131,5 @@ export class UsersController {
 	async getUserRoles(@Param('id') userId: string) {
 		return this.userService.getUserRoles(userId);
 	}
+
 }
