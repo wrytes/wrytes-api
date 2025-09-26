@@ -11,7 +11,10 @@ export class UsersController {
 	constructor(private readonly userService: UserService) {}
 
 	@Get('profile')
-	@ApiOperation({ summary: 'Get current user profile', description: 'Retrieves the profile information for the currently authenticated user' })
+	@ApiOperation({
+		summary: 'Get current user profile',
+		description: 'Retrieves the profile information for the currently authenticated user',
+	})
 	@ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
 	@ApiResponse({ status: 401, description: 'User not authenticated' })
 	@ApiResponse({ status: 404, description: 'User not found' })
@@ -43,7 +46,10 @@ export class UsersController {
 
 	@Put(':id/profile')
 	@RequirePermission('users', 'update')
-	@ApiOperation({ summary: 'Update user profile', description: 'Updates the profile information for a specific user. Requires users:update permission' })
+	@ApiOperation({
+		summary: 'Update user profile',
+		description: 'Updates the profile information for a specific user. Requires users:update permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'Profile updated successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -66,7 +72,10 @@ export class UsersController {
 
 	@Get(':id')
 	@RequirePermission('users', 'read')
-	@ApiOperation({ summary: 'Get user by ID', description: 'Retrieves detailed information about a specific user by their ID. Requires users:read permission' })
+	@ApiOperation({
+		summary: 'Get user by ID',
+		description: 'Retrieves detailed information about a specific user by their ID. Requires users:read permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'User retrieved successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -75,9 +84,12 @@ export class UsersController {
 		return this.userService.getUserById(id);
 	}
 
-	@Put(':id/activate')	
+	@Put(':id/activate')
 	@RequirePermission('users', 'update')
-	@ApiOperation({ summary: 'Activate user', description: 'Activates a user account, enabling them to access the system. Requires users:update permission' })
+	@ApiOperation({
+		summary: 'Activate user',
+		description: 'Activates a user account, enabling them to access the system. Requires users:update permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'User activated successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -88,7 +100,10 @@ export class UsersController {
 
 	@Put(':id/deactivate')
 	@RequirePermission('users', 'update')
-	@ApiOperation({ summary: 'Deactivate user', description: 'Deactivates a user account, preventing them from accessing the system. Requires users:update permission' })
+	@ApiOperation({
+		summary: 'Deactivate user',
+		description: 'Deactivates a user account, preventing them from accessing the system. Requires users:update permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'User deactivated successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -97,9 +112,12 @@ export class UsersController {
 		return this.userService.deactivateUser(id);
 	}
 
-	@Post(':id/roles')	
-	@RequirePermission('roles', 'assign')
-	@ApiOperation({ summary: 'Assign role to user', description: 'Assigns a specific role to a user with optional expiration date. Requires roles:assign permission' })
+	@Post(':id/roles')
+	@RequirePermission('users', 'assign')
+	@ApiOperation({
+		summary: 'Assign role to user',
+		description: 'Assigns a specific role to a user with optional expiration date. Requires roles:assign permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'Role assigned successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -109,8 +127,11 @@ export class UsersController {
 	}
 
 	@Delete(':id/roles/:roleId')
-	@RequirePermission('roles', 'assign')
-	@ApiOperation({ summary: 'Remove role from user', description: 'Removes a specific role from a user. Requires roles:assign permission' })
+	@RequirePermission('users', 'assign')
+	@ApiOperation({
+		summary: 'Remove role from user',
+		description: 'Removes a specific role from a user. Requires roles:assign permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiParam({ name: 'roleId', description: 'Role ID' })
 	@ApiResponse({ status: 200, description: 'Role removed successfully' })
@@ -123,7 +144,10 @@ export class UsersController {
 
 	@Get(':id/roles')
 	@RequirePermission('users', 'read')
-	@ApiOperation({ summary: 'Get user roles', description: 'Retrieves all roles assigned to a specific user. Requires users:read permission' })
+	@ApiOperation({
+		summary: 'Get user roles',
+		description: 'Retrieves all roles assigned to a specific user. Requires users:read permission',
+	})
 	@ApiParam({ name: 'id', description: 'User ID' })
 	@ApiResponse({ status: 200, description: 'User roles retrieved successfully' })
 	@ApiResponse({ status: 403, description: 'Insufficient permissions' })
@@ -131,5 +155,4 @@ export class UsersController {
 	async getUserRoles(@Param('id') userId: string) {
 		return this.userService.getUserRoles(userId);
 	}
-
 }

@@ -79,7 +79,6 @@ async function assignAdminRole() {
 		console.log(`User ID: ${user.id}`);
 		console.log(`Wallet Address: ${user.walletAddress}`);
 		console.log(`Role: ${adminRole.name}`);
-
 	} catch (error) {
 		console.error('❌ Error assigning admin role:', error);
 		process.exit(1);
@@ -88,4 +87,4 @@ async function assignAdminRole() {
 	}
 }
 
-assignAdminRole(); 
+assignAdminRole();

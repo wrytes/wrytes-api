@@ -7,12 +7,6 @@ export interface CreateRoleDto {
 	description?: string;
 }
 
-export interface CreatePermissionDto {
-	resource: string;
-	action: string;
-	description?: string;
-}
-
 @Injectable()
 export class RoleService {
 	constructor(private readonly databaseService: DatabaseService) {}
@@ -148,39 +142,6 @@ export class RoleService {
 
 		await this.prisma.role.delete({
 			where: { id: roleId },
-		});
-	}
-
-	async createPermission(data: CreatePermissionDto) {
-		// Check if permission already exists
-		const existingPermission = await this.prisma.permission.findUnique({
-			where: {
-				resource_action: {
-					resource: data.resource,
-					action: data.action,
-				},
-			},
-		});
-
-		if (existingPermission) {
-			throw new ConflictException(`Permission ${data.resource}:${data.action} already exists`);
-		}
-
-		return this.prisma.permission.create({
-			data,
-		});
-	}
-
-	async getAllPermissions() {
-		return this.prisma.permission.findMany({
-			include: {
-				_count: {
-					select: {
-						rolePermissions: true,
-					},
-				},
-			},
-			orderBy: [{ resource: 'asc' }, { action: 'asc' }],
 		});
 	}
 

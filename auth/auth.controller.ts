@@ -1,7 +1,7 @@
 import { Body, Controller, Post, Get, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserService } from '../users/users.service';
-import { ApiResponse, ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiResponse, ApiTags, ApiOperation } from '@nestjs/swagger';
 import { CreateMessageDto } from './dtos/CreateMessage.dto';
 import { SignInDto } from './dtos/SignIn.dto';
 import { Public } from './decorators/public.decorator';
@@ -67,7 +67,6 @@ export class AuthController {
 	}
 
 	@Get('me')
-	@ApiBearerAuth()
 	@ApiOperation({
 		summary: 'Get current user profile',
 		description: 'Returns the profile information of the currently authenticated user',
@@ -109,7 +108,6 @@ export class AuthController {
 	}
 
 	@Post('refresh')
-	@ApiBearerAuth()
 	@HttpCode(HttpStatus.OK)
 	@ApiOperation({
 		summary: 'Refresh JWT token',

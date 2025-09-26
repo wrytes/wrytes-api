@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DockerClient } from './docker.client.service';
 import { CreateDockerfileOptions, CreateImageOptions } from './docker.build.types';
-import { Readable } from 'stream';
 import Tar from 'tar-stream';
 
 @Injectable()
@@ -40,14 +39,14 @@ CMD ["bash", "-c", "${options.run ?? 'yarn run start'}"]
 `;
 	}
 
-	createTarStream(content: string): Readable {
+	createTarStream(content: string): Tar.Pack {
 		const stream = Tar.pack();
 		stream.entry({ name: 'Dockerfile' }, content);
 		stream.finalize();
 		return stream;
 	}
 
-	async buildImageFromStream(streamContent: Readable, tag: string): Promise<string | any> {
+	async buildImageFromStream(streamContent: Tar.Pack, tag: string): Promise<string | any> {
 		return new Promise((resolve, reject) => {
 			this.docker.buildImage(
 				streamContent,
