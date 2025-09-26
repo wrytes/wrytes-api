@@ -5,6 +5,8 @@ import { mainnet } from 'viem/chains';
 // Verify environment
 if (process.env.ALCHEMY_RPC_KEY === undefined) throw new Error('ALCHEMY_RPC_KEY not available');
 if (process.env.COINGECKO_API_KEY === undefined) throw new Error('COINGECKO_API_KEY not available');
+if (process.env.DERIBIT_CLIENT_ID === undefined) throw new Error('DERIBIT_CLIENT_ID not available');
+if (process.env.DERIBIT_CLIENT_SECRET === undefined) throw new Error('DERIBIT_CLIENT_SECRET not available');
 
 // Config type
 export type ConfigType = {
@@ -13,6 +15,10 @@ export type ConfigType = {
 	alchemyRpcKey: string;
 	coingeckoApiKey: string;
 	chain: Chain;
+	deribit: {
+		clientId: string;
+		clientSecret: string;
+	};
 };
 
 // Database configuration type
@@ -44,6 +50,10 @@ export const CONFIG: ConfigType = {
 	coingeckoApiKey: process.env.COINGECKO_API_KEY,
 	chain: mainnet,
 	alchemyRpcKey: process.env.ALCHEMY_RPC_KEY,
+	deribit: {
+		clientId: process.env.DERIBIT_CLIENT_ID,
+		clientSecret: process.env.DERIBIT_CLIENT_SECRET,
+	},
 };
 
 // DATABASE CONFIG
