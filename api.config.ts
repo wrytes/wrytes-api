@@ -5,6 +5,7 @@ import { mainnet } from 'viem/chains';
 // Verify environment
 if (process.env.ALCHEMY_RPC_KEY === undefined) throw new Error('ALCHEMY_RPC_KEY not available');
 if (process.env.COINGECKO_API_KEY === undefined) throw new Error('COINGECKO_API_KEY not available');
+if (process.env.ETHERSCAN_API_KEY === undefined) throw new Error('ETHERSCAN_API_KEY not available');
 if (process.env.DERIBIT_CLIENT_ID === undefined) throw new Error('DERIBIT_CLIENT_ID not available');
 if (process.env.DERIBIT_CLIENT_SECRET === undefined) throw new Error('DERIBIT_CLIENT_SECRET not available');
 
@@ -14,6 +15,7 @@ export type ConfigType = {
 	indexer: string;
 	alchemyRpcKey: string;
 	coingeckoApiKey: string;
+	etherscanApiKey: string;
 	chain: Chain;
 	deribit: {
 		clientId: string;
@@ -48,6 +50,7 @@ export const CONFIG: ConfigType = {
 	app: process.env.CONFIG_APP_URL || 'http://localhost:3000',
 	indexer: process.env.CONFIG_INDEXER_URL || 'http://localhost:42069',
 	coingeckoApiKey: process.env.COINGECKO_API_KEY,
+	etherscanApiKey: process.env.ETHERSCAN_API_KEY,
 	chain: mainnet,
 	alchemyRpcKey: process.env.ALCHEMY_RPC_KEY,
 	deribit: {
@@ -101,4 +104,10 @@ export const COINGECKO_CLIENT = (query: string) => {
 	const hasParams = query.includes('?');
 	const uri: string = `https://api.coingecko.com${query}`;
 	return fetch(`${uri}${hasParams ? '&' : '?'}${CONFIG.coingeckoApiKey}`);
+};
+
+// ETHERSCAN CLIENT
+export const ETHERSCAN_CLIENT = (params: Map<string, string>) => {
+	const query = new URLSearchParams(Array.from(params.entries())).toString();
+	return fetch(`https://api.etherscan.io/v2/api?${query}&apikey=${CONFIG.etherscanApiKey}`);
 };
