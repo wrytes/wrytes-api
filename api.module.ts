@@ -13,6 +13,7 @@ import { WalletModule } from 'wallet/wallet.module';
 import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
+import { DeribitModule } from './deribit/deribit.module';
 
 // CONTROLLER IMPORTS
 
@@ -27,6 +28,7 @@ import { RolesModule } from './roles/roles.module';
 		UsersModule,
 		RolesModule,
 		AuthModule,
+		DeribitModule,
 	],
 	// controllers: [
 
