@@ -115,3 +115,19 @@ model RolePermission {
   @@unique([roleId, permissionId])
   @@map("role_permissions")
 }
+
+// Etherscan cache table for API response caching
+model EtherscanCache {
+  id          String   @id @default(cuid())
+  requestType String   @map("request_type") // e.g., "balance", "transactions", "tokens"
+  parameters  String   // Hashed/stringified parameters for the request
+  response    Json     // Cached API response data
+  createdAt   DateTime @default(now()) @map("created_at")
+  expiresAt   DateTime @map("expires_at") // TTL-based expiration
+  
+  @@unique([requestType, parameters])
+  @@index([requestType])
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@map("etherscan_cache")
+}

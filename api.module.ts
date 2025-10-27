@@ -14,6 +14,7 @@ import { DatabaseModule } from './database/database.module';
 import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { DeribitModule } from './deribit/deribit.module';
+import { EtherscanModule } from './etherscan/etherscan.module';
 
 // CONTROLLER IMPORTS
 
@@ -29,6 +30,7 @@ import { DeribitModule } from './deribit/deribit.module';
 		RolesModule,
 		AuthModule,
 		DeribitModule,
+		EtherscanModule,
 	],
 	// controllers: [
 

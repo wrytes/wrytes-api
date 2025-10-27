@@ -30,6 +30,10 @@ async function main() {
 		{ resource: 'system', action: 'admin', description: 'Full system administration' },
 		{ resource: 'system', action: 'monitor', description: 'Monitor system health' },
 		{ resource: 'system', action: 'status', description: 'Get system status' },
+
+		// Etherscan integration
+		{ resource: 'etherscan', action: 'read', description: 'Access Etherscan API data' },
+		{ resource: 'etherscan', action: 'admin', description: 'Manage Etherscan cache and settings' },
 	];
 
 	console.log('📝 Creating permissions...');
@@ -100,7 +104,10 @@ async function main() {
 	// User gets basic read permissions
 	const userPermissions = await prisma.permission.findMany({
 		where: {
-			OR: [{ resource: 'system', action: 'status' }],
+			OR: [
+				{ resource: 'system', action: 'status' },
+				{ resource: 'etherscan', action: 'read' },
+			],
 		},
 	});
 
@@ -129,6 +136,7 @@ async function main() {
 				{ resource: 'roles', action: 'assign' },
 				{ resource: 'system', action: 'monitor' },
 				{ resource: 'system', action: 'status' },
+				{ resource: 'etherscan', action: 'read' },
 			],
 		},
 	});

@@ -75,6 +75,19 @@ Table role_permissions {
   }
 }
 
+Table etherscan_cache {
+  id String [pk]
+  requestType String [not null]
+  parameters String [not null]
+  response Json [not null]
+  createdAt DateTime [default: `now()`, not null]
+  expiresAt DateTime [not null]
+
+  indexes {
+    (requestType, parameters) [unique]
+  }
+}
+
 Ref: user_roles.userId > users.id [delete: Cascade]
 
 Ref: user_roles.roleId > roles.id [delete: Cascade]

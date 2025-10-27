@@ -32,7 +32,7 @@
 		"db:migrate:deploy": "prisma migrate deploy --schema=database/schema.prisma",
 		"db:studio": "prisma studio --schema=database/schema.prisma",
 		"db:reset": "prisma migrate reset --schema=database/schema.prisma",
-		"db:seed": "ts-node database/seed.ts"
+		"db:seed": "ts-node database/scripts/seed.ts"
 	},
 	"dependencies": {
 		"@apollo/client": "^3.10.5",
