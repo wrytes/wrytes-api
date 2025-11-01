@@ -5,8 +5,8 @@ import { ConfigModule } from '@nestjs/config';
 
 // SERVICE IMPORTS
 import { ApiService } from 'api.service';
-import { Storj } from 'storj/storj.s3.service';
-import { TelegramService } from 'telegram/telegram.service';
+// import { Storj } from 'storj/storj.s3.service';
+// import { TelegramService } from 'telegram/telegram.service';
 import { DockerModule } from './docker/docker.module';
 import { AuthModule } from 'auth/auth.module';
 import { WalletModule } from 'wallet/wallet.module';
@@ -15,6 +15,7 @@ import { UsersModule } from './users/users.module';
 import { RolesModule } from './roles/roles.module';
 import { DeribitModule } from './deribit/deribit.module';
 import { EtherscanModule } from './etherscan/etherscan.module';
+import { AuthProcessorModule } from 'authProcessor/auth.processor.module';
 
 // CONTROLLER IMPORTS
 
@@ -31,10 +32,11 @@ import { EtherscanModule } from './etherscan/etherscan.module';
 		AuthModule,
 		DeribitModule,
 		EtherscanModule,
+		AuthProcessorModule,
 	],
 	// controllers: [
 
 	// ],
-	providers: [Storj, TelegramService, ApiService],
+	providers: [/* Storj, TelegramService, */ ApiService],
 })
 export class AppModule {}

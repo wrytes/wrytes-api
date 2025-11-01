@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { CONFIG, VIEM_CONFIG } from 'api.config';
-import { TelegramService } from 'telegram/telegram.service';
+// import { TelegramService } from 'telegram/telegram.service';
 import { Chain, mainnet, polygon } from 'viem/chains';
 
 export const INDEXING_TIMEOUT_COUNT: number = 5;
@@ -17,13 +17,15 @@ export class ApiService {
 	private indexingTimeoutCount: number = 0;
 	private fetchedBlockheight: number = 0;
 
-	constructor(private readonly telegram: TelegramService) {
+	constructor(/* private readonly telegram: TelegramService */) {
 		setTimeout(() => this.updateBlockheight(), 100);
 	}
 
 	async updateWorkflow() {
 		// this.logger.log(`Fetched blockheight: ${this.fetchedBlockheight}`);
-		const promises = [this.telegram.updateTelegram()];
+		const promises = [
+			/* this.telegram.updateTelegram() */
+		];
 
 		return Promise.all(promises);
 	}

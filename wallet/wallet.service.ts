@@ -43,6 +43,7 @@ export class WalletService {
 			this.logger.error('Signature verification failed', {
 				error: error.message,
 				expectedAddress,
+				isValid: false,
 			});
 			return false;
 		}
