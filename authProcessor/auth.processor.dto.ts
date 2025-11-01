@@ -157,7 +157,7 @@ export class AuthorizationResponseDto {
 
 	@ApiProperty({
 		description: 'Current status of the authorization',
-		example: 'VERIFIED',
+		example: 'READY',
 		enum: ['VERIFIED', 'AUTHORIZE', 'TIMELOCK', 'READY', 'EXPIRED', 'SETTLED', 'FAILED', 'CANCELLED'],
 	})
 	status: string;

@@ -17,7 +17,7 @@ export class AuthorizationProcessorService {
 			address: AuthorizationDomain.verifyingContract,
 			abi: AuthorizationProcessorABI,
 			client: {
-				// @ts-ignore
+				// @ts-expect-error type
 				public: VIEM_CONFIG,
 			},
 		});
@@ -65,7 +65,11 @@ export class AuthorizationProcessorService {
 		}
 	}
 
-	// Individual check functions that return results instead of throwing
+	// ==========================================
+	// Individual Check Functions
+	// ==========================================
+	// These functions perform verification checks and return detailed results
+	// instead of throwing exceptions, enabling comprehensive status reporting
 
 	async checkSignature(auth: AuthorizationInput): Promise<VerificationResult['signature']> {
 		try {
@@ -209,9 +213,29 @@ export class AuthorizationProcessorService {
 		await this.verifyAllowance(auth, signer);
 	}
 
+	/**
+	 * Creates and stores an authorization with flexible validation approach.
+	 *
+	 * REQUIRED VALIDATIONS (will reject):
+	 * - Valid EIP-712 signature verification
+	 * - Unique signer + nonce combination
+	 * - Basic time integrity (validAfter < validBefore)
+	 *
+	 * FLEXIBLE VALIDATIONS (accepts but records status):
+	 * - Future authorizations (status: TIMELOCK)
+	 * - Missing allowance (status: AUTHORIZE)
+	 * - Expired authorizations (status: EXPIRED)
+	 *
+	 * STATUS ASSIGNMENT:
+	 * - VERIFIED: Basic signature validation passed
+	 * - AUTHORIZE: Waiting for sufficient allowance
+	 * - TIMELOCK: Valid but not yet active
+	 * - READY: Fully validated and executable
+	 * - EXPIRED: Past validBefore timestamp
+	 */
 	async createAuthorization(auth: AuthorizationInput): Promise<any> {
-		await this.verifySignature(auth); // would revert
-		const verification = await this.checkCompleteAuthorization(auth); // gives status
+		await this.verifySignature(auth); // Hard requirement - will revert on invalid signature
+		const verification = await this.checkCompleteAuthorization(auth); // Get detailed status
 
 		// Check for duplicates
 		const existingAuth = await this.prisma.authorization.findUnique({

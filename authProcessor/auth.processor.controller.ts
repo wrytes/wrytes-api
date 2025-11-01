@@ -35,23 +35,68 @@ export class AuthorizationProcessorController {
 	@Public()
 	@Post('verify')
 	@ApiOperation({
-		summary: 'Verify authorization signature and validity',
-		description: 'Performs complete verification: signature recovery, authorization validation, and allowance checking',
+		summary: 'Comprehensive Authorization Verification',
+		description: `
+		**Performs detailed verification and returns comprehensive status for all authorization checks.**
+		
+		**Verification Components:**
+		- ✅ **Signature Check**: Recovers signer address from EIP-712 signature
+		- ✅ **Authorization Check**: Validates timing, nonce usage, and smart contract authorization
+		- ✅ **Allowance Check**: Verifies allowance availability for the operation
+		
+		**Response Structure:**
+		Returns detailed breakdown of each verification step with specific error messages,
+		current state information, and an overall executable status.
+		
+		**Use Cases:**
+		- Pre-flight validation before settlement
+		- Detailed debugging of authorization issues
+		- Client-side verification with comprehensive feedback
+		- Integration testing and development workflow
+		`,
 	})
 	@ApiBody({ type: AuthorizationInputDto })
 	@ApiResponse({
 		status: 200,
-		description: 'Authorization verified successfully',
+		description: 'Comprehensive verification results with detailed breakdown',
 		schema: {
 			type: 'object',
 			properties: {
-				signer: { type: 'string', example: '0x1234567890abcdef1234567890abcdef12345678' },
-				authorizationValid: { type: 'boolean', example: true },
-				allowanceAmount: { type: 'string', example: '1000000000000000000' },
+				executable: { type: 'boolean', example: true, description: 'Whether authorization can be executed immediately' },
+				signature: {
+					type: 'object',
+					properties: {
+						isValid: { type: 'boolean', example: true },
+						signer: { type: 'string', example: '0x742d35cc0cf6c4976e3e4b7a2c5ff0e7e2e4a8c1', nullable: true },
+						error: { type: 'string', example: null, nullable: true },
+					},
+				},
+				authorization: {
+					type: 'object',
+					properties: {
+						isValid: { type: 'boolean', example: true },
+						nonceValid: { type: 'boolean', example: true },
+						notPending: { type: 'boolean', example: true },
+						notExpired: { type: 'boolean', example: true },
+						currentTime: { type: 'number', example: 1698765432 },
+						validAfter: { type: 'number', example: 1698765400 },
+						validBefore: { type: 'number', example: 1698851832 },
+						error: { type: 'string', example: null, nullable: true },
+					},
+				},
+				allowance: {
+					type: 'object',
+					properties: {
+						isValid: { type: 'boolean', example: true },
+						requested: { type: 'string', example: '1000000000000000000' },
+						reduce: { type: 'string', example: '1000000000000000000' },
+						error: { type: 'string', example: null, nullable: true },
+					},
+				},
 			},
 		},
 	})
-	@ApiResponse({ status: 400, description: 'Invalid signature or authorization' })
+	@ApiResponse({ status: 400, description: 'Invalid input format or validation failed' })
 	async verifyAuthorization(@Body(ValidationPipe) auth: AuthorizationInputDto) {
 		return await this.authProcessor.checkCompleteAuthorization(auth);
 	}
@@ -59,8 +104,35 @@ export class AuthorizationProcessorController {
 	@Public()
 	@Post('settle')
 	@ApiOperation({
-		summary: 'Create and store authorization for settlement',
-		description: 'Verifies the authorization and creates a database entry with status "created" for batching',
+		summary: 'Flexible Authorization Settlement',
+		description: `
+		**Creates and stores an authorization for settlement with flexible validation.**
+		
+		This endpoint has a more permissive approach compared to \`/verify\`:
+		
+		**Required Validations (will reject):**
+		- ✅ **Valid signature** - Must pass EIP-712 signature verification
+		- ✅ **Unique nonce** - Prevents duplicate authorizations from same signer
+		- ✅ **Basic time integrity** - Ensures validAfter < validBefore
+		
+		**Flexible Validations (accepts but records status):**
+		- ⚠️ **Future authorizations** - Accepts if validAfter is in future (status: TIMELOCK)
+		- ⚠️ **Missing allowance** - Accepts if allowance insufficient (status: AUTHORIZE)
+		- ⚠️ **Expired authorizations** - Accepts expired auths (status: EXPIRED)
+		
+		**Status Assignment Logic:**
+		- \`VERIFIED\` → Basic signature validation passed
+		- \`AUTHORIZE\` → Waiting for sufficient allowance
+		- \`TIMELOCK\` → Valid but not yet active (validAfter in future)
+		- \`READY\` → Fully validated and executable
+		- \`EXPIRED\` → Past validBefore timestamp
+		
+		**Use Cases:**
+		- Batch processing of authorizations
+		- Storing future-dated authorizations
+		- Flexible settlement pipeline with status tracking
+		- Retry mechanisms for failed allowance checks
+		`,
 	})
 	@ApiBody({ type: AuthorizationInputDto })
 	@ApiResponse({
@@ -84,12 +156,43 @@ export class AuthorizationProcessorController {
 	@Public()
 	@Get('pending')
 	@ApiOperation({
-		summary: 'Get pending authorization processes',
-		description: 'Shows authorization which wait for conditions',
+		summary: 'Get Pending Authorizations',
+		description: `
+		**Retrieves authorizations that are waiting for conditions to be met before settlement.**
+		
+		**Included Status Types:**
+		- \`VERIFIED\` → Basic signature validation passed, pending further checks
+		- \`AUTHORIZE\` → Waiting for sufficient allowance on smart contract
+		- \`TIMELOCK\` → Valid authorization but not yet active (validAfter in future)
+		
+		**Use Cases:**
+		- Monitoring authorizations awaiting conditions
+		- Batch processing queue management
+		- Status dashboard for pending settlements
+		- Retry logic for failed allowance checks
+		- Time-based settlement scheduling
+		
+		**Response:** Array of authorization objects with current status and timing information.
+		`,
 	})
 	@ApiResponse({
 		status: 200,
-		description: '',
+		description: 'List of authorizations waiting for conditions',
+		schema: {
+			type: 'array',
+			items: {
+				type: 'object',
+				properties: {
+					id: { type: 'string', example: 'clr123456789abcdef' },
+					signer: { type: 'string', example: '0x742d35cc0cf6c4976e3e4b7a2c5ff0e7e2e4a8c1' },
+					status: { type: 'string', example: 'TIMELOCK', enum: ['VERIFIED', 'AUTHORIZE', 'TIMELOCK'] },
+					validAfter: { type: 'string', example: '1698765432' },
+					validBefore: { type: 'string', example: '1698851832' },
+					amount: { type: 'string', example: '1000000000000000000' },
+					createdAt: { type: 'string', format: 'date-time' },
+				},
+			},
+		},
 	})
 	async getWaitingAuth() {
 		return await this.authProcessor.getPendingAuthorizations();
@@ -98,24 +201,42 @@ export class AuthorizationProcessorController {
 	@Public()
 	@Get('batching')
 	@ApiOperation({
-		summary: 'Get ready and unsettled authorization processes',
-		description: 'Shows authorization batches that are un-settlement',
+		summary: 'Get Ready Authorizations for Batching',
+		description: `
+		**Retrieves authorizations with READY status that are prepared for immediate settlement.**
+		
+		**READY Status Criteria:**
+		- ✅ Valid signature verification
+		- ✅ Sufficient allowance confirmed
+		- ✅ Authorization timing is active (validAfter ≤ now < validBefore)
+		- ✅ Nonce is unused
+		- ✅ All smart contract validations passed
+		
+		**Use Cases:**
+		- Batch processing queue for settlement
+		- Real-time settlement candidate identification
+		- Settlement service integration
+		- Performance monitoring of ready authorizations
+		- Capacity planning for settlement operations
+		
+		**Response:** Array of immediately executable authorization objects.
+		`,
 	})
 	@ApiResponse({
 		status: 200,
-		description: 'Unsettled authorization batch retrieved successfully',
+		description: 'List of authorizations ready for immediate settlement',
 		schema: {
 			type: 'array',
 			items: {
 				type: 'object',
 				properties: {
-					id: { type: 'string' },
-					batchNumber: { type: 'number' },
-					status: {
-						type: 'string',
-						enum: ['READY'],
-					},
-					members: { type: 'array', items: { type: 'object' } },
+					id: { type: 'string', example: 'clr123456789abcdef' },
+					signer: { type: 'string', example: '0x742d35cc0cf6c4976e3e4b7a2c5ff0e7e2e4a8c1' },
+					status: { type: 'string', example: 'READY', enum: ['READY'] },
+					kind: { type: 'number', example: 0, description: 'Operation type: 0=TRANSFER, 1=DEPOSIT, 2=PROCESS, 3=CLAIM' },
+					amount: { type: 'string', example: '1000000000000000000' },
+					token: { type: 'string', example: '0xa0b86a33e6741e6aa4cb2b3d6c81b7b8a3e1f2d4' },
+					allowanceAmount: { type: 'string', example: '1000000000000000000' },
 					createdAt: { type: 'string', format: 'date-time' },
 				},
 			},
