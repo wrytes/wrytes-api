@@ -39,3 +39,28 @@ export const AuthorizationDomain = {
 	chainId: mainnet.id,
 	verifyingContract: '0x3874161854D0D5f13B4De2cB5061d9cff547466E' as `0x${string}`,
 };
+
+export interface AuthorizationInput {
+	kind: AuthorizationOperationKind;
+	from: string;
+	to: string;
+	token: string;
+	amount: string;
+	nonce: string;
+	validAfter: string;
+	validBefore: string;
+	signature: string;
+}
+
+export interface VerificationResult {
+	signer: string;
+	authorizationValid: boolean;
+	allowanceAmount: string;
+}
+
+export interface SupportedNetworkInfo {
+	name: string;
+	chainId: number;
+	contractAddress: string;
+	blockNumber?: number;
+}

@@ -131,3 +131,116 @@ model EtherscanCache {
   @@index([createdAt])
   @@map("etherscan_cache")
 }
+
+// Authorization objects for processing pipeline
+model Authorization {
+  id           String             @id @default(cuid())
+  kind         Int                // OperationKind enum: 0=TRANSFER, 1=DEPOSIT, 2=PROCESS, 3=CLAIM
+  fromAddress  String             @map("from_address")
+  toAddress    String             @map("to_address")
+  token        String             // Token contract address
+  amount       String             // BigInt as string
+  nonce        String             // bytes32 as hex string
+  validAfter   String             @map("valid_after") // uint256 as string (timestamp)
+  validBefore  String             @map("valid_before") // uint256 as string (timestamp)
+  signature    String             // Full signature bytes as hex
+  signer       String             // Recovered signer address (required)
+  status       AuthorizationStatus @default(PENDING)
+  
+  // Blockchain verification results
+  authorizationValid Boolean? @map("authorization_valid")
+  allowanceAmount    String?  @map("allowance_amount") // Available allowance as string
+  
+  // Settlement tracking
+  settlementHash    String?   @map("settlement_hash") // Transaction hash when settled
+  settledAt         DateTime? @map("settled_at")
+  
+  // Audit fields
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+  verifiedAt        DateTime? @map("verified_at")
+  
+  // Relations
+  batchMembers      AuthorizationBatchMember[]
+  
+  @@unique([signer, nonce])
+  @@index([signer])
+  @@index([nonce])
+  @@index([status])
+  @@index([kind])
+  @@index([fromAddress])
+  @@index([toAddress])
+  @@index([token])
+  @@index([createdAt])
+  @@index([settledAt])
+  @@map("authorizations")
+}
+
+enum AuthorizationStatus {
+  PENDING           // Initial state after creation
+  VERIFIED          // Passed all verifications
+  VERIFICATION_FAILED // Failed verification
+  BATCHED           // Added to batch for settlement
+  SETTLING          // Settlement transaction submitted
+  SETTLED           // Successfully settled on-chain
+  FAILED            // Settlement failed
+  EXPIRED           // Expired before settlement
+  CANCELLED         // Manually cancelled
+}
+
+// Batch processing for authorization settlements
+model AuthorizationBatch {
+  id              String   @id @default(cuid())
+  batchNumber     Int      @unique @default(autoincrement()) @map("batch_number")
+  status          BatchStatus @default(PENDING)
+  
+  // Batching criteria
+  maxItems        Int      @default(50) @map("max_items")
+  maxValue        String?  @map("max_value") // Total value threshold as string
+  maxWaitTime     Int      @default(3600) @map("max_wait_time") // Seconds to wait before processing
+  
+  // Settlement details
+  transactionHash String?  @map("transaction_hash")
+  gasUsed         String?  @map("gas_used")
+  gasPrice        String?  @map("gas_price")
+  
+  // Timing
+  createdAt       DateTime @default(now()) @map("created_at")
+  submittedAt     DateTime? @map("submitted_at")
+  settledAt       DateTime? @map("settled_at")
+  
+  // Relations
+  members         AuthorizationBatchMember[]
+  
+  @@index([status])
+  @@index([createdAt])
+  @@index([submittedAt])
+  @@map("authorization_batches")
+}
+
+enum BatchStatus {
+  PENDING     // Collecting authorizations
+  READY       // Ready for submission
+  SUBMITTING  // Transaction being submitted
+  SUBMITTED   // Transaction submitted to blockchain
+  CONFIRMED   // Transaction confirmed
+  FAILED      // Transaction failed
+}
+
+// Junction table for batch membership
+model AuthorizationBatchMember {
+  id              String        @id @default(cuid())
+  authorizationId String        @map("authorization_id")
+  batchId         String        @map("batch_id")
+  position        Int           // Position in batch for gas optimization
+  addedAt         DateTime      @default(now()) @map("added_at")
+  
+  // Relations
+  authorization   Authorization @relation(fields: [authorizationId], references: [id], onDelete: Cascade)
+  batch          AuthorizationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  
+  @@unique([authorizationId, batchId])
+  @@index([batchId])
+  @@index([authorizationId])
+  @@map("authorization_batch_members")
+}
