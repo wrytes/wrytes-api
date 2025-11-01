@@ -3,7 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { DeribitClientService } from './deribit.client.service';
 import { Currency } from '@wrytlabs/deribit-api-client';
 
-@ApiTags('deribit')
+@ApiTags('Deribit')
 @Controller('deribit')
 export class DeribitController {
 	constructor(private readonly client: DeribitClientService) {}

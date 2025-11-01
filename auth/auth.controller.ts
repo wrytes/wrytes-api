@@ -6,7 +6,7 @@ import { CreateMessageDto } from './dtos/CreateMessage.dto';
 import { SignInDto } from './dtos/SignIn.dto';
 import { Public } from './decorators/public.decorator';
 
-@ApiTags('Authentication')
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
 	constructor(

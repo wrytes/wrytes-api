@@ -1,14 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
-import { DatabaseHealthService } from './database-health.service';
+import { DatabaseHealthService } from './database.health.service';
 import { DatabaseHealth, PerformanceMetrics, MigrationStatus } from '../types/database.types';
 
 @ApiTags('Database Health')
-@Controller('health')
+@Controller('database/health')
 export class DatabaseHealthController {
 	constructor(private readonly healthService: DatabaseHealthService) {}
 
-	@Get('database')
+	@Get('/')
 	@ApiOperation({ summary: 'Get database health status' })
 	@ApiResponse({
 		status: 200,
@@ -41,7 +41,7 @@ export class DatabaseHealthController {
 		return this.healthService.getOverallHealth();
 	}
 
-	@Get('database/connections')
+	@Get('/connections')
 	@ApiOperation({ summary: 'Get active connections count' })
 	@ApiResponse({
 		status: 200,
@@ -62,7 +62,7 @@ export class DatabaseHealthController {
 		};
 	}
 
-	@Get('database/migrations')
+	@Get('/migrations')
 	@ApiOperation({ summary: 'Get migration status' })
 	@ApiResponse({
 		status: 200,
@@ -82,7 +82,7 @@ export class DatabaseHealthController {
 		return this.healthService.getMigrationStatus();
 	}
 
-	@Get('database/performance')
+	@Get('/performance')
 	@ApiOperation({ summary: 'Get performance metrics' })
 	@ApiResponse({
 		status: 200,
@@ -104,7 +104,7 @@ export class DatabaseHealthController {
 		return this.healthService.getPerformanceMetrics();
 	}
 
-	@Get('database/docker')
+	@Get('/docker')
 	@ApiOperation({ summary: 'Get Docker container status (if using Docker fallback)' })
 	@ApiResponse({
 		status: 200,
@@ -136,7 +136,7 @@ export class DatabaseHealthController {
 		};
 	}
 
-	@Get('database/test')
+	@Get('/test')
 	@ApiOperation({ summary: 'Test database connection' })
 	@ApiResponse({
 		status: 200,

@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
-@ApiTags('authorization')
+@ApiTags('Authorization Processor')
 @Controller('authorization/processor')
 export class AuthorizationProcessorController {
 	constructor() {}
