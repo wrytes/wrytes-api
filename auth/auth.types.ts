@@ -1,4 +1,4 @@
-import { Address, Hex } from 'viem';
+import { Address, Hash, Hex } from 'viem';
 
 export type CreateMessageOptions = {
 	address: Address;
@@ -19,4 +19,10 @@ export type AuthPayload = {
 
 export type AuthAccessToken = {
 	accessToken: string;
+};
+
+export type VerifySignatureOptions = {
+	message: string;
+	signature: Hash;
+	expectedAddress: Address;
 };

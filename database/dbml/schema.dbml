@@ -107,40 +107,9 @@ Table authorizations {
   createdAt DateTime [default: `now()`, not null]
   updatedAt DateTime [not null]
   verifiedAt DateTime
-  batchMembers authorization_batch_members [not null]
 
   indexes {
     (signer, nonce) [unique]
-  }
-}
-
-Table authorization_batches {
-  id String [pk]
-  batchNumber Int [increment, unique, not null]
-  status BatchStatus [not null, default: 'PENDING']
-  maxItems Int [not null, default: 50]
-  maxValue String
-  maxWaitTime Int [not null, default: 3600]
-  transactionHash String
-  gasUsed String
-  gasPrice String
-  createdAt DateTime [default: `now()`, not null]
-  submittedAt DateTime
-  settledAt DateTime
-  members authorization_batch_members [not null]
-}
-
-Table authorization_batch_members {
-  id String [pk]
-  authorizationId String [not null]
-  batchId String [not null]
-  position Int [not null]
-  addedAt DateTime [default: `now()`, not null]
-  authorization authorizations [not null]
-  batch authorization_batches [not null]
-
-  indexes {
-    (authorizationId, batchId) [unique]
   }
 }
 
@@ -155,14 +124,6 @@ Enum AuthorizationStatus {
   CANCELLED
 }
 
-Enum BatchStatus {
-  PENDING
-  READY
-  SUBMITTED
-  CONFIRMED
-  FAILED
-}
-
 Ref: user_roles.userId > users.id [delete: Cascade]
 
 Ref: user_roles.roleId > roles.id [delete: Cascade]
@@ -172,7 +133,3 @@ Ref: user_roles.grantedBy > users.id [delete: Cascade]
 Ref: role_permissions.roleId > roles.id [delete: Cascade]
 
 Ref: role_permissions.permissionId > permissions.id [delete: Cascade]
-
-Ref: authorization_batch_members.authorizationId > authorizations.id [delete: Cascade]
-
-Ref: authorization_batch_members.batchId > authorization_batches.id [delete: Cascade]

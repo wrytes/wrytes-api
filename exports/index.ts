@@ -5,4 +5,4 @@ export * from '../docker/docker.build.types';
 
 export * from '../telegram/telegram.types';
 
-export * from '../wallet/wallet.types';
+// export * from '../wallet/wallet.types';

@@ -1,8 +1,7 @@
 import { Injectable, BadRequestException, Logger, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { isAddress, isHex, zeroAddress, Address } from 'viem';
-import { WalletService } from 'wallet/wallet.service';
-import { AuthAccessToken, AuthPayload, CreateMessageOptions, SignInOptions } from './auth.types';
+import { isAddress, isHex, zeroAddress, Address, recoverMessageAddress } from 'viem';
+import { AuthAccessToken, AuthPayload, CreateMessageOptions, SignInOptions, VerifySignatureOptions } from './auth.types';
 import { formatMinutes } from 'utils/format';
 import { UserService } from '../users/users.service';
 
@@ -11,7 +10,6 @@ export class AuthService {
 	private readonly logger = new Logger(AuthService.name);
 
 	constructor(
-		private readonly wallet: WalletService,
 		private readonly jwtService: JwtService,
 		private readonly userService: UserService
 	) {}
@@ -137,13 +135,39 @@ export class AuthService {
 		}
 	}
 
+	async verifySignature({ message, signature, expectedAddress }: VerifySignatureOptions): Promise<boolean> {
+		try {
+			const recoveredAddress = await recoverMessageAddress({
+				message,
+				signature,
+			});
+
+			const isValid = recoveredAddress.toLowerCase() === expectedAddress.toLowerCase();
+
+			this.logger.debug('Signature verification completed', {
+				expectedAddress,
+				recoveredAddress,
+				isValid,
+			});
+
+			return isValid;
+		} catch (error) {
+			this.logger.error('Signature verification failed', {
+				error: error.message,
+				expectedAddress,
+				isValid: false,
+			});
+			return false;
+		}
+	}
+
 	private async verifyWalletSignature(message: string, signature: string, expectedAddress: string) {
 		if (!isHex(signature)) {
 			throw new BadRequestException('Signature must be in hex format (0x...)');
 		}
 
 		try {
-			const isValid = await this.wallet.verifySignature({
+			const isValid = await this.verifySignature({
 				message,
 				signature,
 				expectedAddress: expectedAddress as Address,

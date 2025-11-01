@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
-import { WalletModule } from 'wallet/wallet.module';
 import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './guards/auth.guard';
 import { RoleGuard } from './guards/role.guard';
@@ -12,7 +11,6 @@ import { RolesModule } from '../roles/roles.module';
 
 @Module({
 	imports: [
-		WalletModule,
 		UsersModule,
 		RolesModule,
 		JwtModule.registerAsync({

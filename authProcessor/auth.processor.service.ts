@@ -296,13 +296,6 @@ export class AuthorizationProcessorService {
 					nonce: auth.nonce,
 				},
 			},
-			include: {
-				batchMembers: {
-					include: {
-						batch: true,
-					},
-				},
-			},
 		});
 
 		if (!authorization) {
@@ -323,13 +316,6 @@ export class AuthorizationProcessorService {
 
 		const authorizations = await this.prisma.authorization.findMany({
 			where,
-			include: {
-				batchMembers: {
-					include: {
-						batch: true,
-					},
-				},
-			},
 			orderBy: {
 				createdAt: 'desc',
 			},

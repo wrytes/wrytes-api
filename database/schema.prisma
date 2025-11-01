@@ -161,9 +161,6 @@ model Authorization {
   updatedAt         DateTime  @updatedAt @map("updated_at")
   verifiedAt        DateTime? @map("verified_at")
   
-  // Relations
-  batchMembers      AuthorizationBatchMember[]
-  
   @@unique([signer, nonce])
   @@index([signer])
   @@index([nonce])
@@ -188,58 +185,3 @@ enum AuthorizationStatus {
   CANCELLED         // Cancelled
 }
 
-// Batch processing for authorization settlements
-model AuthorizationBatch {
-  id              String   @id @default(cuid())
-  batchNumber     Int      @unique @default(autoincrement()) @map("batch_number")
-  status          BatchStatus @default(PENDING)
-  
-  // Batching criteria
-  maxItems        Int      @default(50) @map("max_items")
-  maxValue        String?  @map("max_value") // Total value threshold as string
-  maxWaitTime     Int      @default(3600) @map("max_wait_time") // Seconds to wait before processing
-  
-  // Settlement details
-  transactionHash String?  @map("transaction_hash")
-  gasUsed         String?  @map("gas_used")
-  gasPrice        String?  @map("gas_price")
-  
-  // Timing
-  createdAt       DateTime @default(now()) @map("created_at")
-  submittedAt     DateTime? @map("submitted_at")
-  settledAt       DateTime? @map("settled_at")
-  
-  // Relations
-  members         AuthorizationBatchMember[]
-  
-  @@index([status])
-  @@index([createdAt])
-  @@index([submittedAt])
-  @@map("authorization_batches")
-}
-
-enum BatchStatus {
-  PENDING     // Collecting authorizations
-  READY       // Ready for submission
-  SUBMITTED   // Transaction submitted to blockchain
-  CONFIRMED   // Transaction confirmed
-  FAILED      // Transaction failed
-}
-
-// Junction table for batch membership
-model AuthorizationBatchMember {
-  id              String        @id @default(cuid())
-  authorizationId String        @map("authorization_id")
-  batchId         String        @map("batch_id")
-  position        Int           // Position in batch for gas optimization
-  addedAt         DateTime      @default(now()) @map("added_at")
-  
-  // Relations
-  authorization   Authorization @relation(fields: [authorizationId], references: [id], onDelete: Cascade)
-  batch          AuthorizationBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  
-  @@unique([authorizationId, batchId])
-  @@index([batchId])
-  @@index([authorizationId])
-  @@map("authorization_batch_members")
-}
