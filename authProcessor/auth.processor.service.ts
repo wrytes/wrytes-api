@@ -11,9 +11,8 @@ import { VIEM_CONFIG } from 'api.config';
 export class AuthorizationProcessorService {
 	private readonly logger = new Logger(this.constructor.name);
 	private readonly contract;
-	private readonly prisma: PrismaClient;
 
-	constructor(private readonly database: DatabaseService) {
+	constructor(private readonly databaseService: DatabaseService) {
 		this.contract = getContract({
 			address: AuthorizationDomain.verifyingContract,
 			abi: AuthorizationProcessorABI,
@@ -22,8 +21,14 @@ export class AuthorizationProcessorService {
 				public: VIEM_CONFIG,
 			},
 		});
+	}
 
-		this.prisma = this.database.getPrismaClient();
+	private get prisma(): PrismaClient {
+		const client = this.databaseService.getPrismaClient();
+		if (!client) {
+			throw new Error('Database client not available');
+		}
+		return client;
 	}
 
 	formatPayload(auth: AuthorizationInput) {
@@ -237,8 +242,6 @@ export class AuthorizationProcessorService {
 				createdAt: 'asc',
 			},
 		});
-
-		console.log(batches);
 
 		return batches;
 	}

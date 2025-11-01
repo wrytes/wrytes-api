@@ -153,12 +153,12 @@ export class AuthorizationProcessorController {
 			},
 		},
 	})
-	async getAuthorizationsBySigner(@Param('signer') signer: string, @Query('nonce') nonce?: string) {
+	async getAuthorizationsBySigner(@Param('signer') signer: string) {
 		if (!signer.match(/^0x[a-fA-F0-9]{40}$/)) {
 			throw new Error('Invalid signer address format');
 		}
 
-		return await this.authProcessor.getAuthorizationsBySignerAndNonce(signer, nonce);
+		return await this.authProcessor.getAuthorizationsBySignerAndNonce(signer);
 	}
 
 	@Get('status/:signer/:nonce')
