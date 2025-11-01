@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Body, Param, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { AuthorizationProcessorService } from './auth.processor.service';
-import { Public } from '../auth/decorators/public.decorator';
 import { AuthorizationInputDto } from './auth.processor.dto';
 
 @ApiTags('Authorization Processor')
@@ -9,7 +8,6 @@ import { AuthorizationInputDto } from './auth.processor.dto';
 export class AuthorizationProcessorController {
 	constructor(private readonly authProcessor: AuthorizationProcessorService) {}
 
-	@Public()
 	@Get('supported')
 	@ApiOperation({
 		summary: 'Get supported network information',
@@ -32,7 +30,6 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.getSupportedNetwork();
 	}
 
-	@Public()
 	@Post('verify')
 	@ApiOperation({
 		summary: 'Comprehensive Authorization Verification',
@@ -101,7 +98,6 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.checkCompleteAuthorization(auth);
 	}
 
-	@Public()
 	@Post('settle')
 	@ApiOperation({
 		summary: 'Flexible Authorization Settlement',
@@ -153,7 +149,6 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.createAuthorization(auth);
 	}
 
-	@Public()
 	@Get('pending')
 	@ApiOperation({
 		summary: 'Get Pending Authorizations',
@@ -198,7 +193,6 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.getPendingAuthorizations();
 	}
 
-	@Public()
 	@Get('batching')
 	@ApiOperation({
 		summary: 'Get Ready Authorizations for Batching',
@@ -246,7 +240,6 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.getUnsettledAuthorizations();
 	}
 
-	@Public()
 	@Post('status')
 	@ApiOperation({
 		summary: 'Get authorization status by authorization data',

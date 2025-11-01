@@ -34,6 +34,10 @@ async function main() {
 		// Etherscan integration
 		{ resource: 'etherscan', action: 'read', description: 'Access Etherscan API data' },
 		{ resource: 'etherscan', action: 'admin', description: 'Manage Etherscan cache and settings' },
+
+		// Authorization processor
+		{ resource: 'authorizations', action: 'create', description: 'Create new authorizations' },
+		{ resource: 'authorizations', action: 'read', description: 'View authorization information' },
 	];
 
 	console.log('📝 Creating permissions...');
@@ -107,6 +111,7 @@ async function main() {
 			OR: [
 				{ resource: 'system', action: 'status' },
 				{ resource: 'etherscan', action: 'read' },
+				{ resource: 'authorizations', action: 'read' },
 			],
 		},
 	});
@@ -137,6 +142,8 @@ async function main() {
 				{ resource: 'system', action: 'monitor' },
 				{ resource: 'system', action: 'status' },
 				{ resource: 'etherscan', action: 'read' },
+				{ resource: 'authorizations', action: 'read' },
+				{ resource: 'authorizations', action: 'create' },
 			],
 		},
 	});
