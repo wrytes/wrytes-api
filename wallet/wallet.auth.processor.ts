@@ -31,8 +31,6 @@ export class WalletAuthProcessorService {
 			},
 			account: this.walletService.account,
 		});
-
-		setTimeout(() => this.executeWatcherCycle(), 1000);
 	}
 
 	private get prisma(): PrismaClient {
@@ -43,10 +41,8 @@ export class WalletAuthProcessorService {
 		return client;
 	}
 
-	@Cron('0 */5 * * * *')
+	@Cron('0 */10 * * * *')
 	async executeWatcherCycle(): Promise<void> {
-		this.logger.log('Starting wallet auth processor cycle');
-
 		try {
 			await this.updatePendingEntries();
 			await this.verifyReadyEntries();
@@ -54,8 +50,15 @@ export class WalletAuthProcessorService {
 		} catch (error) {
 			this.logger.error('Wallet auth processor cycle failed', error);
 		}
+	}
 
-		this.logger.log('Wallet auth processor cycle completed');
+	@Cron('0 */1 * * * *')
+	async confirmWatchCycle(): Promise<void> {
+		try {
+			await this.verifyExecutedEntries();
+		} catch (error) {
+			this.logger.error('Wallet auth processor confirm failed', error);
+		}
 	}
 
 	async updatePendingEntries(): Promise<number> {
@@ -125,6 +128,70 @@ export class WalletAuthProcessorService {
 
 		this.logger.log(`Updated ${updatedCount} pending authorization entries`);
 		return updatedCount;
+	}
+
+	async verifyExecutedEntries(): Promise<number> {
+		this.logger.log('Verifying executed authorization entries');
+
+		const executedAuthorizations = await this.prisma.authorization.findMany({
+			where: {
+				status: 'READY',
+				settlementHash: {
+					not: null,
+				},
+			},
+			take: 100,
+			orderBy: {
+				createdAt: 'asc',
+			},
+		});
+
+		if (executedAuthorizations.length === 0) {
+			this.logger.debug('No executed authorizations to verify');
+			return 0;
+		}
+
+		const uniqueHashes = [...new Set(executedAuthorizations.map((auth) => auth.settlementHash).filter(Boolean))];
+		let settledCount = 0;
+
+		for (const txHash of uniqueHashes) {
+			try {
+				const receipt = await VIEM_CONFIG.waitForTransactionReceipt({
+					hash: txHash as `0x${string}`,
+					timeout: 1000, // 1 second timeout to avoid blocking
+				});
+
+				if (receipt.status === 'success') {
+					const block = await VIEM_CONFIG.getBlock({ blockNumber: receipt.blockNumber });
+					const blockTimestamp = new Date(Number(block.timestamp) * 1000);
+
+					const authsToUpdate = executedAuthorizations.filter((auth) => auth.settlementHash === txHash);
+
+					await this.prisma.authorization.updateMany({
+						where: {
+							id: {
+								in: authsToUpdate.map((auth) => auth.id),
+							},
+						},
+						data: {
+							status: 'SETTLED',
+							settledAt: blockTimestamp,
+							updatedAt: new Date(),
+						},
+					});
+
+					settledCount += authsToUpdate.length;
+					this.logger.log(
+						`Confirmed transaction ${txHash} - settled ${authsToUpdate.length} authorizations at block ${receipt.blockNumber}`
+					);
+				}
+			} catch (error) {
+				this.logger.debug(`Transaction ${txHash} not yet confirmed or failed to check`, error.message);
+			}
+		}
+
+		this.logger.log(`Verified ${settledCount} executed authorization entries`);
+		return settledCount;
 	}
 
 	async verifyReadyEntries(): Promise<number> {
@@ -212,12 +279,8 @@ export class WalletAuthProcessorService {
 			});
 
 			const txHash = await this.contract.write.batchExecute([authDataArray]);
-			const receipt = await VIEM_CONFIG.waitForTransactionReceipt({ hash: txHash });
 
-			const block = await VIEM_CONFIG.getBlock({ blockNumber: receipt.blockNumber });
-			const timestamp = block.timestamp;
-
-			console.log(receipt.logs);
+			const submittedTime = Math.floor(Date.now() / 1000);
 
 			await this.prisma.authorization.updateMany({
 				where: {
@@ -226,31 +289,17 @@ export class WalletAuthProcessorService {
 					},
 				},
 				data: {
-					status: 'SETTLED',
 					settlementHash: txHash,
-					settledAt: String(timestamp),
-					updatedAt: String(timestamp),
+					submittedAt: String(submittedTime),
+					updatedAt: String(submittedTime),
 				},
 			});
 
-			this.logger.log(`Executed batch with ${batchToExecute.length} authorizations. Transaction hash: ${txHash}`);
+			this.logger.log(`Submitted batch with ${batchToExecute.length} authorizations. Transaction hash: ${txHash}`);
 
 			return txHash;
 		} catch (error) {
 			this.logger.error('Failed to execute batch', error);
-
-			await this.prisma.authorization.updateMany({
-				where: {
-					id: {
-						in: batchToExecute.map((auth) => auth.id),
-					},
-				},
-				data: {
-					status: 'FAILED',
-					updatedAt: new Date(),
-				},
-			});
-
 			throw error;
 		}
 	}

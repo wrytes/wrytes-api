@@ -278,7 +278,7 @@ export class AuthorizationProcessorService {
 				signer: verification.signature.signer,
 				allowanceAmount: verification.allowance.reduce,
 				status: status as any,
-				verifiedAt: new Date(),
+				createdAt: String(verification.authorization.currentTime),
 			},
 		});
 

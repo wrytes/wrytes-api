@@ -155,11 +155,11 @@ model Authorization {
   // Settlement tracking
   settlementHash    String?   @map("settlement_hash") // Transaction hash when settled
   settledAt         DateTime? @map("settled_at")
+  submittedAt        DateTime? @map("submitted_at")
   
   // Audit fields
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
-  verifiedAt        DateTime? @map("verified_at")
   
   @@unique([signer, nonce])
   @@index([signer])
@@ -170,7 +170,10 @@ model Authorization {
   @@index([toAddress])
   @@index([token])
   @@index([createdAt])
+  @@index([updatedAt])
+  @@index([submittedAt])
   @@index([settledAt])
+  @@index([settlementHash])
   @@map("authorizations")
 }
 
