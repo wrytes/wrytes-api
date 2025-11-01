@@ -1,3 +1,4 @@
+import { Address, Hash } from 'viem';
 import { mainnet } from 'viem/chains';
 
 export enum AuthorizationOperationKind {
@@ -53,9 +54,28 @@ export interface AuthorizationInput {
 }
 
 export interface VerificationResult {
-	signer: string;
-	authorizationValid: boolean;
-	allowanceAmount: string;
+	executable: boolean;
+	signature: {
+		isValid: boolean;
+		signer: Address | null;
+		error?: string;
+	};
+	authorization: {
+		isValid: boolean;
+		nonceValid: boolean;
+		notPending: boolean;
+		notExpired: boolean;
+		currentTime: number;
+		validAfter: number;
+		validBefore: number;
+		error?: string;
+	};
+	allowance: {
+		isValid: boolean;
+		requested: string;
+		reduce: string;
+		error?: string;
+	};
 }
 
 export interface SupportedNetworkInfo {

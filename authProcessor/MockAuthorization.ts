@@ -1,4 +1,5 @@
-export const MockAuthorization = {
+export const MockAuthorizationTransfer = {
+	// FIXME: renew
 	kind: 0,
 	from: '0x0170f42f224b99ccbbee673093589c5f9691dd06',
 	to: '0xedb0b22a3f755824462c5128d6df289fc4cdbe8c',
@@ -9,4 +10,17 @@ export const MockAuthorization = {
 	validBefore: '99999999999',
 	signature:
 		'0xc5633db46b4361bb942c2f2fcbcf0e6f4ed38e61f18b3a299964e76418129aa4450e3df18ff7814459cc4af3518f642ecbccae1e093b87d31499769edc281e641c',
+};
+
+export const MockAuthorizationDeposit = {
+	kind: 1,
+	from: '0x0170F42f224b99CcbbeE673093589c5f9691dd06',
+	to: '0xF1F917DbB25aAebd98F05aE1D64Ffe8290AFb9B4',
+	token: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
+	amount: '1000000',
+	nonce: '0x0000000000000000000000000000000000000000000000000000000000000001',
+	validAfter: '0',
+	validBefore: '99999999999',
+	signature:
+		'0xdf0cbae4c9fbe99ce32935a1a85709b9a48b97bfe34666d2377efcc360b8f75d08d903ed09acdf12ccedd59010493b987d8358c38b09963fe9e65ce4fe7ebaa81b',
 };

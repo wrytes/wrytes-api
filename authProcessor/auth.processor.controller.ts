@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Query, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, ValidationPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiParam } from '@nestjs/swagger';
 import { AuthorizationProcessorService } from './auth.processor.service';
 import { Public } from '../auth/decorators/public.decorator';
@@ -6,10 +6,10 @@ import { AuthorizationInputDto } from './auth.processor.dto';
 
 @ApiTags('Authorization Processor')
 @Controller('authorization/processor')
-@Public()
 export class AuthorizationProcessorController {
 	constructor(private readonly authProcessor: AuthorizationProcessorService) {}
 
+	@Public()
 	@Get('supported')
 	@ApiOperation({
 		summary: 'Get supported network information',
@@ -32,6 +32,7 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.getSupportedNetwork();
 	}
 
+	@Public()
 	@Post('verify')
 	@ApiOperation({
 		summary: 'Verify authorization signature and validity',
@@ -52,9 +53,10 @@ export class AuthorizationProcessorController {
 	})
 	@ApiResponse({ status: 400, description: 'Invalid signature or authorization' })
 	async verifyAuthorization(@Body(ValidationPipe) auth: AuthorizationInputDto) {
-		return await this.authProcessor.verifyCompleteAuthorization(auth);
+		return await this.authProcessor.checkCompleteAuthorization(auth);
 	}
 
+	@Public()
 	@Post('settle')
 	@ApiOperation({
 		summary: 'Create and store authorization for settlement',
@@ -79,14 +81,29 @@ export class AuthorizationProcessorController {
 		return await this.authProcessor.createAuthorization(auth);
 	}
 
-	@Get('batching')
+	@Public()
+	@Get('pending')
 	@ApiOperation({
-		summary: 'Get unsettled authorization processes',
-		description: 'Shows authorization batches that are pending settlement, either time-based or volume-based',
+		summary: 'Get pending authorization processes',
+		description: 'Shows authorization which wait for conditions',
 	})
 	@ApiResponse({
 		status: 200,
-		description: 'Unsettled batches retrieved successfully',
+		description: '',
+	})
+	async getWaitingAuth() {
+		return await this.authProcessor.getPendingAuthorizations();
+	}
+
+	@Public()
+	@Get('batching')
+	@ApiOperation({
+		summary: 'Get ready and unsettled authorization processes',
+		description: 'Shows authorization batches that are un-settlement',
+	})
+	@ApiResponse({
+		status: 200,
+		description: 'Unsettled authorization batch retrieved successfully',
 		schema: {
 			type: 'array',
 			items: {
@@ -94,17 +111,21 @@ export class AuthorizationProcessorController {
 				properties: {
 					id: { type: 'string' },
 					batchNumber: { type: 'number' },
-					status: { type: 'string', enum: ['PENDING', 'READY', 'SUBMITTING', 'SUBMITTED', 'CONFIRMED', 'FAILED'] },
+					status: {
+						type: 'string',
+						enum: ['READY'],
+					},
 					members: { type: 'array', items: { type: 'object' } },
 					createdAt: { type: 'string', format: 'date-time' },
 				},
 			},
 		},
 	})
-	async getUnsettledBatches() {
-		return await this.authProcessor.getUnsettledBatches();
+	async getUnsettledAuthorizations() {
+		return await this.authProcessor.getUnsettledAuthorizations();
 	}
 
+	@Public()
 	@Post('status')
 	@ApiOperation({
 		summary: 'Get authorization status by authorization data',

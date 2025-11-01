@@ -100,8 +100,7 @@ Table authorizations {
   validBefore String [not null]
   signature String [not null]
   signer String [not null]
-  status AuthorizationStatus [not null, default: 'PENDING']
-  authorizationValid Boolean
+  status AuthorizationStatus [not null, default: 'VERIFIED']
   allowanceAmount String
   settlementHash String
   settledAt DateTime
@@ -146,21 +145,19 @@ Table authorization_batch_members {
 }
 
 Enum AuthorizationStatus {
-  PENDING
   VERIFIED
-  VERIFICATION_FAILED
-  BATCHED
-  SETTLING
+  AUTHORIZE
+  TIMELOCK
+  READY
+  EXPIRED
   SETTLED
   FAILED
-  EXPIRED
   CANCELLED
 }
 
 Enum BatchStatus {
   PENDING
   READY
-  SUBMITTING
   SUBMITTED
   CONFIRMED
   FAILED

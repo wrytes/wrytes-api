@@ -85,7 +85,8 @@ export class AuthorizationInputDto implements AuthorizationInput {
 
 	@ApiProperty({
 		description: 'EIP-712 signature of the authorization (hex string with 0x prefix)',
-		example: '0x1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b',
+		example:
+			'0x1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b',
 		pattern: '^0x[a-fA-F0-9]+$',
 		minLength: 132,
 	})
@@ -157,7 +158,7 @@ export class AuthorizationResponseDto {
 	@ApiProperty({
 		description: 'Current status of the authorization',
 		example: 'VERIFIED',
-		enum: ['PENDING', 'VERIFIED', 'VERIFICATION_FAILED', 'BATCHED', 'SETTLING', 'SETTLED', 'FAILED', 'EXPIRED', 'CANCELLED'],
+		enum: ['VERIFIED', 'AUTHORIZE', 'TIMELOCK', 'READY', 'EXPIRED', 'SETTLED', 'FAILED', 'CANCELLED'],
 	})
 	status: string;
 

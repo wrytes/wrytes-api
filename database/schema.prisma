@@ -135,6 +135,7 @@ model EtherscanCache {
 // Authorization objects for processing pipeline
 model Authorization {
   id           String             @id @default(cuid())
+
   kind         Int                // OperationKind enum: 0=TRANSFER, 1=DEPOSIT, 2=PROCESS, 3=CLAIM
   fromAddress  String             @map("from_address")
   toAddress    String             @map("to_address")
@@ -144,12 +145,12 @@ model Authorization {
   validAfter   String             @map("valid_after") // uint256 as string (timestamp)
   validBefore  String             @map("valid_before") // uint256 as string (timestamp)
   signature    String             // Full signature bytes as hex
-  signer       String             // Recovered signer address (required)
-  status       AuthorizationStatus @default(PENDING)
+  signer       String             // Recovered signer address
+
+  status       AuthorizationStatus @default(VERIFIED)
   
   // Blockchain verification results
-  authorizationValid Boolean? @map("authorization_valid")
-  allowanceAmount    String?  @map("allowance_amount") // Available allowance as string
+  allowanceAmount    String?  @map("allowance_amount") // reduce allowance as string
   
   // Settlement tracking
   settlementHash    String?   @map("settlement_hash") // Transaction hash when settled
@@ -177,15 +178,14 @@ model Authorization {
 }
 
 enum AuthorizationStatus {
-  PENDING           // Initial state after creation
-  VERIFIED          // Passed all verifications
-  VERIFICATION_FAILED // Failed verification
-  BATCHED           // Added to batch for settlement
-  SETTLING          // Settlement transaction submitted
+  VERIFIED          // Valid signature
+  AUTHORIZE           // Is waiting for authorization
+  TIMELOCK          // Timelock until validAfter
+  READY             // Ready to settle
+  EXPIRED           // Expired before validBefore
   SETTLED           // Successfully settled on-chain
   FAILED            // Settlement failed
-  EXPIRED           // Expired before settlement
-  CANCELLED         // Manually cancelled
+  CANCELLED         // Cancelled
 }
 
 // Batch processing for authorization settlements
@@ -221,7 +221,6 @@ model AuthorizationBatch {
 enum BatchStatus {
   PENDING     // Collecting authorizations
   READY       // Ready for submission
-  SUBMITTING  // Transaction being submitted
   SUBMITTED   // Transaction submitted to blockchain
   CONFIRMED   // Transaction confirmed
   FAILED      // Transaction failed

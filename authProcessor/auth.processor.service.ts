@@ -56,7 +56,7 @@ export class AuthorizationProcessorService {
 				blockNumber: Number(blockNumber),
 			};
 		} catch (error) {
-			this.logger.error('Failed to get network info', error);
+			this.logger.error('Failed to get network info');
 			return {
 				name: mainnet.name,
 				chainId: mainnet.id,
@@ -65,60 +65,159 @@ export class AuthorizationProcessorService {
 		}
 	}
 
-	async verifySignature(auth: AuthorizationInput): Promise<string> {
+	// Individual check functions that return results instead of throwing
+
+	async checkSignature(auth: AuthorizationInput): Promise<VerificationResult['signature']> {
 		try {
 			const authData = this.formatPayload(auth);
-
 			const signer = await this.contract.read.verifySignature([authData]);
-			return signer.toLowerCase();
+			return {
+				isValid: true,
+				signer: signer.toLowerCase(),
+			};
 		} catch (error) {
-			this.logger.error('Signature verification failed', error);
-			throw new BadRequestException('Invalid signature');
+			this.logger.debug('Signature verification failed', error);
+			return {
+				isValid: false,
+				signer: null,
+				error: 'Invalid signature - signature verification failed on smart contract',
+			};
 		}
 	}
 
-	async verifyAuthorization(auth: AuthorizationInput, signer: string): Promise<void> {
+	async checkAuthorization(auth: AuthorizationInput, signer: string): Promise<VerificationResult['authorization']> {
+		const currentTime = Math.floor(Date.now() / 1000);
+		const validAfter = parseInt(auth.validAfter);
+		const validBefore = parseInt(auth.validBefore);
+
+		const notPending = validAfter < currentTime;
+		const notExpired = validBefore > currentTime;
+
+		const result = {
+			isValid: false,
+			notPending,
+			notExpired,
+			nonceValid: false,
+			currentTime,
+			validAfter,
+			validBefore,
+		};
+
+		try {
+			result.nonceValid = !(await this.contract.read.nonces([signer as `0x${string}`, auth.nonce]));
+
+			// Basic time validation
+			if (validAfter >= validBefore) {
+				return {
+					...result,
+					error: 'Invalid time range - validAfter must be less than validBefore',
+				};
+			}
+
+			// Check if authorization is expired
+			if (currentTime >= validBefore) {
+				return {
+					...result,
+					error: 'Authorization expired - current time is past validBefore',
+				};
+			}
+
+			if (!result.nonceValid) {
+				return {
+					...result,
+					error: `Authorization nonce already used`,
+				};
+			}
+
+			return {
+				...result,
+				isValid: notPending && notExpired && result.nonceValid,
+				...(!notPending && {
+					error: `Warning: Authorization not yet valid`,
+				}),
+			};
+		} catch (error) {
+			this.logger.debug('Authorization verification failed, nonce', error);
+			return {
+				...result,
+				isValid: notPending && notExpired && result.nonceValid,
+				error: `Authorization verification failed, nonce`,
+			};
+		}
+	}
+
+	async checkAllowance(auth: AuthorizationInput, signer: string): Promise<VerificationResult['allowance']> {
 		try {
 			const authData = this.formatPayload(auth);
+			const requested = await this.contract.read.verifyAllowance([authData, signer as `0x${string}`]);
 
-			await this.contract.read.verifyAuthorization([authData, signer as `0x${string}`]);
+			return {
+				isValid: true,
+				requested: auth.amount,
+				reduce: String(requested),
+			};
 		} catch (error) {
-			this.logger.error('Authorization verification failed', error);
-			throw new BadRequestException('Authorization verification failed');
+			this.logger.debug('Allowance verification failed', error);
+			return {
+				isValid: false,
+				requested: auth.amount,
+				reduce: auth.amount,
+			};
 		}
 	}
 
-	async verifyAllowance(auth: AuthorizationInput, signer: string): Promise<string> {
-		try {
-			const authData = this.formatPayload(auth);
-
-			const allowance = await this.contract.read.verifyAllowance([authData, signer as `0x${string}`]);
-			return allowance.toString();
-		} catch (error) {
-			this.logger.error('Allowance verification failed', error);
-			throw new BadRequestException('Insufficient allowance');
-		}
-	}
-
-	async verifyCompleteAuthorization(auth: AuthorizationInput): Promise<VerificationResult> {
-		const signer = await this.verifySignature(auth);
-		await this.verifyAuthorization(auth, signer);
-		const allowanceAmount = await this.verifyAllowance(auth, signer);
+	async checkCompleteAuthorization(auth: AuthorizationInput): Promise<VerificationResult> {
+		const signature = await this.checkSignature(auth);
+		const authorization = await this.checkAuthorization(auth, signature.signer);
+		const allowance = await this.checkAllowance(auth, signature.signer);
 
 		return {
-			signer,
-			authorizationValid: true,
-			allowanceAmount,
+			executable: signature.isValid && authorization.isValid && allowance.isValid,
+			signature,
+			authorization,
+			allowance,
 		};
 	}
 
-	async createAuthorization(auth: AuthorizationInput): Promise<any> {
-		const verification = await this.verifyCompleteAuthorization(auth);
+	async verifySignature(auth: AuthorizationInput): Promise<VerificationResult['signature']> {
+		const result = await this.checkSignature(auth);
+		if (!result.isValid) {
+			throw new BadRequestException(result.error);
+		}
+		return result;
+	}
 
+	async verifyAuthorization(auth: AuthorizationInput, signer: string): Promise<VerificationResult['authorization']> {
+		const result = await this.checkAuthorization(auth, signer);
+		if (!result.isValid) {
+			throw new BadRequestException(result.error);
+		}
+		return result;
+	}
+
+	async verifyAllowance(auth: AuthorizationInput, signer: string): Promise<VerificationResult['allowance']> {
+		const result = await this.checkAllowance(auth, signer);
+		if (!result.isValid) {
+			throw new BadRequestException(result.error);
+		}
+		return result;
+	}
+
+	async verifyCompleteAuthorization(auth: AuthorizationInput) {
+		const { signer } = await this.verifySignature(auth);
+		await this.verifyAuthorization(auth, signer);
+		await this.verifyAllowance(auth, signer);
+	}
+
+	async createAuthorization(auth: AuthorizationInput): Promise<any> {
+		await this.verifySignature(auth); // would revert
+		const verification = await this.checkCompleteAuthorization(auth); // gives status
+
+		// Check for duplicates
 		const existingAuth = await this.prisma.authorization.findUnique({
 			where: {
 				signer_nonce: {
-					signer: verification.signer,
+					signer: verification.signature.signer,
 					nonce: auth.nonce,
 				},
 			},
@@ -126,6 +225,19 @@ export class AuthorizationProcessorService {
 
 		if (existingAuth) {
 			throw new BadRequestException('Authorization with this signer and nonce already exists');
+		} else if (!verification.authorization.nonceValid) {
+			throw new BadRequestException('Authorization nonce already used');
+		}
+
+		let status = 'VERIFIED';
+		if (!verification.allowance.isValid) {
+			status = 'AUTHORIZE'; // Not yet authorized with allowance
+		} else if (!verification.authorization.notPending) {
+			status = 'TIMELOCK'; // Not yet valid, will be processed when time comes
+		} else if (!verification.authorization.notExpired) {
+			status = 'EXPIRED'; // Already expired
+		} else {
+			status = 'READY'; // passed
 		}
 
 		const authorization = await this.prisma.authorization.create({
@@ -139,20 +251,19 @@ export class AuthorizationProcessorService {
 				validAfter: auth.validAfter,
 				validBefore: auth.validBefore,
 				signature: auth.signature,
-				signer: verification.signer,
-				authorizationValid: verification.authorizationValid,
-				allowanceAmount: verification.allowanceAmount,
-				status: 'VERIFIED',
+				signer: verification.signature.signer,
+				allowanceAmount: verification.allowance.reduce,
+				status: status as any,
 				verifiedAt: new Date(),
 			},
 		});
 
-		this.logger.log(`Authorization created: ${authorization.id} for signer ${verification.signer}`);
+		this.logger.log(`Authorization created: ${authorization.id} for signer ${verification.signature.signer} with status ${status}`);
 		return authorization;
 	}
 
 	async getAuthorizationStatus(auth: AuthorizationInput): Promise<any> {
-		const signer = await this.verifySignature(auth);
+		const { signer } = await this.verifySignature(auth);
 
 		const authorization = await this.prisma.authorization.findUnique({
 			where: {
@@ -204,15 +315,10 @@ export class AuthorizationProcessorService {
 	}
 
 	async getPendingAuthorizations(limit = 50): Promise<any[]> {
-		const cutoffTime = new Date(Date.now() - 5 * 60 * 1000); // 5 minutes ago
-
 		const authorizations = await this.prisma.authorization.findMany({
 			where: {
 				status: {
-					in: ['VERIFIED', 'PENDING'],
-				},
-				createdAt: {
-					lte: cutoffTime,
+					in: ['VERIFIED', 'AUTHORIZE', 'TIMELOCK'],
 				},
 			},
 			orderBy: {
@@ -224,25 +330,19 @@ export class AuthorizationProcessorService {
 		return authorizations;
 	}
 
-	async getUnsettledBatches(): Promise<any[]> {
-		const batches = await this.prisma.authorizationBatch.findMany({
+	async getUnsettledAuthorizations(limit = 50): Promise<any[]> {
+		const authorizations = await this.prisma.authorization.findMany({
 			where: {
 				status: {
-					in: ['PENDING', 'READY', 'SUBMITTING', 'SUBMITTED'],
-				},
-			},
-			include: {
-				members: {
-					include: {
-						authorization: true,
-					},
+					in: ['READY'],
 				},
 			},
 			orderBy: {
 				createdAt: 'asc',
 			},
+			take: limit,
 		});
 
-		return batches;
+		return authorizations;
 	}
 }
