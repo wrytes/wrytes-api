@@ -52,6 +52,17 @@ export class AuthController {
     return { keys };
   }
 
+  @Get('scopes')
+  @UseGuards(ApiKeyGuard)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'List scopes for the current user' })
+  @ApiResponse({ status: 200, description: 'List of scopes' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getScopes(@CurrentUser() user: User) {
+    const scopes = await this.authService.getUserScopes(user.id);
+    return { scopes };
+  }
+
   @Post('revoke')
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
