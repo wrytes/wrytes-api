@@ -15,108 +15,122 @@ import { RequireScopes } from '../../common/decorators/require-scopes.decorator'
 @ApiSecurity('api-key')
 @RequireScopes('KRAKEN')
 export class KrakenController {
-  constructor(
-    private readonly balance: KrakenBalance,
-    private readonly withdraw: KrakenWithdraw,
-    private readonly deposit: KrakenDeposit,
-    private readonly market: KrakenMarket,
-    private readonly orders: KrakenOrders,
-  ) {}
+	constructor(
+		private readonly balance: KrakenBalance,
+		private readonly withdraw: KrakenWithdraw,
+		private readonly deposit: KrakenDeposit,
+		private readonly market: KrakenMarket,
+		private readonly orders: KrakenOrders,
+	) {}
 
-  // ---------------------------------------------------------------------------
-  // Balance
-  // ---------------------------------------------------------------------------
+	// ---------------------------------------------------------------------------
+	// Balance
+	// ---------------------------------------------------------------------------
 
-  @Get('balance')
-  @ApiOperation({ summary: 'Account balance for all assets' })
-  getBalance() {
-    return this.balance.getBalance();
-  }
+	@Get('balance')
+	@ApiOperation({ summary: 'Account balance for all assets' })
+	getBalance() {
+		return this.balance.getBalance();
+	}
 
-  // ---------------------------------------------------------------------------
-  // Market
-  // ---------------------------------------------------------------------------
+	// ---------------------------------------------------------------------------
+	// Market
+	// ---------------------------------------------------------------------------
 
-  @Get('market/ticker')
-  @ApiOperation({ summary: 'Ticker information for a trading pair' })
-  @ApiQuery({ name: 'pair', example: 'USDT/CHF' })
-  getTicker(@Query('pair') pair: string) {
-    return this.market.getTicker(pair);
-  }
+	@Get('market/ticker')
+	@ApiOperation({ summary: 'Ticker information for a trading pair' })
+	@ApiQuery({ name: 'pair', example: 'USDT/CHF' })
+	getTicker(@Query('pair') pair: string) {
+		return this.market.getTicker(pair);
+	}
 
-  @Get('market/price')
-  @ApiOperation({ summary: 'Last-trade price for a token symbol' })
-  @ApiQuery({ name: 'symbol', example: 'ZCHF' })
-  async getPrice(@Query('symbol') symbol: string) {
-    const price = await this.market.getPrice(symbol);
-    return { symbol, price };
-  }
+	@Get('market/price')
+	@ApiOperation({ summary: 'Last-trade price for a token symbol' })
+	@ApiQuery({ name: 'symbol', example: 'CHF' })
+	async getPrice(@Query('symbol') symbol: string) {
+		const price = await this.market.getPrice(symbol);
+		return { symbol, price };
+	}
 
-  @Get('market/symbols')
-  @ApiOperation({ summary: 'List supported token symbols' })
-  getSupportedSymbols() {
-    return { symbols: this.market.getSupportedSymbols() };
-  }
+	// ---------------------------------------------------------------------------
+	// Orders
+	// ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // Orders
-  // ---------------------------------------------------------------------------
+	@Get('orders/open')
+	@ApiOperation({ summary: 'All currently open orders' })
+	getOpenOrders() {
+		return this.orders.getOpenOrders();
+	}
 
-  @Get('orders/open')
-  @ApiOperation({ summary: 'All currently open orders' })
-  getOpenOrders() {
-    return this.orders.getOpenOrders();
-  }
+	@Get('orders/info')
+	@ApiOperation({ summary: 'Order details by transaction ID' })
+	@ApiQuery({ name: 'txid', example: 'OWKHYJ-OL2BD-GKSSXH' })
+	@ApiQuery({ name: 'trades', required: false, type: Boolean })
+	getOrderInfo(
+		@Query('txid') txid: string,
+		@Query('trades') trades?: boolean,
+	) {
+		return this.orders.getOrderInfo({ txid, trades });
+	}
 
-  @Get('orders/info')
-  @ApiOperation({ summary: 'Order details by transaction ID' })
-  @ApiQuery({ name: 'txid', example: 'OWKHYJ-OL2BD-GKSSXH' })
-  @ApiQuery({ name: 'trades', required: false, type: Boolean })
-  getOrderInfo(@Query('txid') txid: string, @Query('trades') trades?: boolean) {
-    return this.orders.getOrderInfo({ txid, trades });
-  }
+	// ---------------------------------------------------------------------------
+	// Withdraw
+	// ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // Withdraw
-  // ---------------------------------------------------------------------------
+	@Get('withdraw/status')
+	@ApiOperation({ summary: 'Recent withdrawal status' })
+	@ApiQuery({ name: 'asset', required: false, example: 'USDT' })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	getWithdrawStatus(
+		@Query('asset') asset?: string,
+		@Query('limit') limit?: string,
+	) {
+		return this.withdraw.withdrawStatus({
+			asset,
+			limit: parseInt(limit ?? '10'),
+		});
+	}
 
-  @Get('withdraw/status')
-  @ApiOperation({ summary: 'Recent withdrawal status' })
-  @ApiQuery({ name: 'asset', required: false, example: 'USDT' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  getWithdrawStatus(@Query('asset') asset?: string, @Query('limit') limit?: string) {
-    return this.withdraw.withdrawStatus({ asset, limit: parseInt(limit ?? '10') });
-  }
+	// ---------------------------------------------------------------------------
+	// Deposit
+	// ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // Deposit
-  // ---------------------------------------------------------------------------
+	@Get('deposit/methods')
+	@ApiOperation({ summary: 'Available deposit methods for an asset' })
+	@ApiQuery({ name: 'asset', example: 'USDT' })
+	getDepositMethods(@Query('asset') asset: string) {
+		return this.deposit.getMethods({ asset });
+	}
 
-  @Get('deposit/methods')
-  @ApiOperation({ summary: 'Available deposit methods for an asset' })
-  @ApiQuery({ name: 'asset', example: 'USDT' })
-  getDepositMethods(@Query('asset') asset: string) {
-    return this.deposit.getMethods({ asset });
-  }
+	@Get('deposit/addresses')
+	@ApiOperation({ summary: 'Deposit addresses for an asset and method' })
+	@ApiQuery({ name: 'asset', example: 'USDT' })
+	@ApiQuery({ name: 'method', example: 'Tether USD (ERC20)' })
+	@ApiQuery({
+		name: 'new',
+		required: false,
+		type: Boolean,
+		description: 'Generate a new address',
+	})
+	getDepositAddresses(
+		@Query('asset') asset: string,
+		@Query('method') method: string,
+		@Query('new') newAddress?: boolean,
+	) {
+		return this.deposit.getAddresses({ asset, method, new: newAddress });
+	}
 
-  @Get('deposit/addresses')
-  @ApiOperation({ summary: 'Deposit addresses for an asset and method' })
-  @ApiQuery({ name: 'asset', example: 'USDT' })
-  @ApiQuery({ name: 'method', example: 'Tether USD (ERC20)' })
-  @ApiQuery({ name: 'new', required: false, type: Boolean, description: 'Generate a new address' })
-  getDepositAddresses(
-    @Query('asset') asset: string,
-    @Query('method') method: string,
-    @Query('new') newAddress?: boolean,
-  ) {
-    return this.deposit.getAddresses({ asset, method, new: newAddress });
-  }
-
-  @Get('deposit/status')
-  @ApiOperation({ summary: 'Recent deposit status' })
-  @ApiQuery({ name: 'asset', required: false, example: 'USDT' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
-  getDepositStatus(@Query('asset') asset?: string, @Query('limit') limit?: string) {
-    return this.deposit.getStatus({ asset, limit: parseInt(limit ?? '10') });
-  }
+	@Get('deposit/status')
+	@ApiOperation({ summary: 'Recent deposit status' })
+	@ApiQuery({ name: 'asset', required: false, example: 'USDT' })
+	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+	getDepositStatus(
+		@Query('asset') asset?: string,
+		@Query('limit') limit?: string,
+	) {
+		return this.deposit.getStatus({
+			asset,
+			limit: parseInt(limit ?? '10'),
+		});
+	}
 }
