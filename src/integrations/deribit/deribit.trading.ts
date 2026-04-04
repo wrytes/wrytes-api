@@ -29,56 +29,56 @@ export class DeribitTrading {
 
   constructor(private readonly client: DeribitClientService) {}
 
-  async buy(params: PlaceOrderParams): Promise<TradingBuyResult> {
-    const c = await this.client.getClient();
+  async buy(userId: string, params: PlaceOrderParams): Promise<TradingBuyResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.buy(params));
   }
 
-  async sell(params: PlaceOrderParams): Promise<TradingSellResult> {
-    const c = await this.client.getClient();
+  async sell(userId: string, params: PlaceOrderParams): Promise<TradingSellResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.sell(params));
   }
 
-  async cancel(order_id: string): Promise<TradingCancelResult> {
-    const c = await this.client.getClient();
+  async cancel(userId: string, order_id: string): Promise<TradingCancelResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.cancel({ order_id }));
   }
 
-  async getOpenOrdersByCurrency(currency: Currency): Promise<TradingGetOpenOrdersByCurrencyResult> {
-    const c = await this.client.getClient();
+  async getOpenOrdersByCurrency(userId: string, currency: Currency): Promise<TradingGetOpenOrdersByCurrencyResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.getOpenOrdersByCurrency({ currency }));
   }
 
-  async getOpenOrdersByInstrument(instrument_name: string): Promise<TradingGetOpenOrdersByInstrumentResult> {
-    const c = await this.client.getClient();
+  async getOpenOrdersByInstrument(userId: string, instrument_name: string): Promise<TradingGetOpenOrdersByInstrumentResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.getOpenOrdersByInstrument({ instrument_name }));
   }
 
-  async getOrderState(order_id: string): Promise<TradingGetOrderStateResult> {
-    const c = await this.client.getClient();
+  async getOrderState(userId: string, order_id: string): Promise<TradingGetOrderStateResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.trading.getOrderState({ order_id }));
   }
 
   /** Place a buy order and poll until it is no longer open. Returns the final order state. */
-  async buyAndWait(params: PlaceOrderParams): Promise<TradingGetOrderStateResult> {
-    const result = await this.buy(params);
+  async buyAndWait(userId: string, params: PlaceOrderParams): Promise<TradingGetOrderStateResult> {
+    const result = await this.buy(userId, params);
     this.logger.log(`Buy order placed: ${result.order.order_id} (${params.instrument_name})`);
-    return this.waitForOrderSettled(result.order.order_id);
+    return this.waitForOrderSettled(userId, result.order.order_id);
   }
 
   /** Place a sell order and poll until it is no longer open. Returns the final order state. */
-  async sellAndWait(params: PlaceOrderParams): Promise<TradingGetOrderStateResult> {
-    const result = await this.sell(params);
+  async sellAndWait(userId: string, params: PlaceOrderParams): Promise<TradingGetOrderStateResult> {
+    const result = await this.sell(userId, params);
     this.logger.log(`Sell order placed: ${result.order.order_id} (${params.instrument_name})`);
-    return this.waitForOrderSettled(result.order.order_id);
+    return this.waitForOrderSettled(userId, result.order.order_id);
   }
 
   /** Poll until the order is filled, rejected, or cancelled. */
-  private waitForOrderSettled(order_id: string): Promise<TradingGetOrderStateResult> {
+  private waitForOrderSettled(userId: string, order_id: string): Promise<TradingGetOrderStateResult> {
     return new Promise((resolve, reject) => {
       const handle = setInterval(async () => {
         try {
-          const state = await this.getOrderState(order_id);
+          const state = await this.getOrderState(userId, order_id);
           if (state.order_state === 'open') {
             this.logger.log(`Order ${order_id}: waiting for settlement...`);
             return;

@@ -1,5 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { KrakenClient } from './kraken.client';
+import { Injectable } from '@nestjs/common';
+import { KrakenClientFactory } from './kraken.factory';
 import {
   DepositMethodsRequest,
   DepositMethodsResponse,
@@ -11,13 +11,11 @@ import {
 
 @Injectable()
 export class KrakenDeposit {
-  private readonly logger = new Logger(KrakenDeposit.name);
+  constructor(private readonly factory: KrakenClientFactory) {}
 
-  constructor(private readonly client: KrakenClient) {}
-
-  /** Get available deposit methods for an asset. */
-  async getMethods(data: DepositMethodsRequest): Promise<DepositMethodsResponse> {
-    const res = await this.client.request({
+  async getMethods(userId: string, data: DepositMethodsRequest): Promise<DepositMethodsResponse> {
+    const client = await this.factory.forUser(userId);
+    const res = await client.request({
       method: 'POST',
       path: '/0/private/DepositMethods',
       body: data as Record<string, any>,
@@ -25,9 +23,9 @@ export class KrakenDeposit {
     return res.json() as Promise<DepositMethodsResponse>;
   }
 
-  /** Get deposit addresses for an asset and method. Pass `new: true` to generate a fresh address. */
-  async getAddresses(data: DepositAddressesRequest): Promise<DepositAddressesResponse> {
-    const res = await this.client.request({
+  async getAddresses(userId: string, data: DepositAddressesRequest): Promise<DepositAddressesResponse> {
+    const client = await this.factory.forUser(userId);
+    const res = await client.request({
       method: 'POST',
       path: '/0/private/DepositAddresses',
       body: data as Record<string, any>,
@@ -35,9 +33,9 @@ export class KrakenDeposit {
     return res.json() as Promise<DepositAddressesResponse>;
   }
 
-  /** Get status of recent deposits. */
-  async getStatus(data: DepositStatusRequest): Promise<DepositStatusResponse> {
-    const res = await this.client.request({
+  async getStatus(userId: string, data: DepositStatusRequest): Promise<DepositStatusResponse> {
+    const client = await this.factory.forUser(userId);
+    const res = await client.request({
       method: 'POST',
       path: '/0/private/DepositStatus',
       body: data as Record<string, any>,

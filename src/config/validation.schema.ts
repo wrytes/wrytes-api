@@ -8,6 +8,9 @@ export const validationSchema = Joi.object({
 	PORT: Joi.number().default(3031),
 	API_KEY_SECRET: Joi.string().min(32).required(),
 
+	// Encryption (for exchange credentials at rest)
+	ENCRYPTION_KEY: Joi.string().min(32).required(),
+
 	// Database
 	DATABASE_URL: Joi.string().required(),
 

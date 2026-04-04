@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { KrakenClient } from './kraken.client';
+import { KrakenClientFactory } from './kraken.factory';
 import { TickerInformation } from './kraken.types';
 
 const PRICE_CACHE_TTL_MS = 30_000;
@@ -16,22 +16,21 @@ export class KrakenMarket {
   private readonly logger = new Logger(KrakenMarket.name);
   private readonly cache = new Map<string, PriceCache>();
 
-  constructor(
-    private readonly client: KrakenClient,
-  ) {}
+  constructor(private readonly factory: KrakenClientFactory) {}
 
-  async getTicker(pair: string): Promise<TickerInformation> {
-    const res = await this.client.request({ method: 'GET', path: '/0/public/Ticker', query: { pair } });
+  async getTicker(userId: string, pair: string): Promise<TickerInformation> {
+    const client = await this.factory.forUser(userId);
+    const res = await client.request({ method: 'GET', path: '/0/public/Ticker', query: { pair } });
     return res.json() as Promise<TickerInformation>;
   }
 
   /** Get last-trade USD price for a token symbol. Results cached for 30s. */
-  async getPrice(symbol: string): Promise<number | null> {
+  async getPrice(userId: string, symbol: string): Promise<number | null> {
     const cached = this.cache.get(symbol);
     if (cached && Date.now() - cached.ts < PRICE_CACHE_TTL_MS) return cached.price;
 
     try {
-      const ticker = await this.getTicker(symbol);
+      const ticker = await this.getTicker(userId, symbol);
 
       if (ticker.error?.length) {
         this.logger.error(`Kraken ticker error for ${symbol}: ${ticker.error.join(', ')}`);
@@ -57,16 +56,16 @@ export class KrakenMarket {
   }
 
   /** Fetch prices for multiple symbols in parallel. */
-  async getPrices(symbols: string[]): Promise<Map<string, number | null>> {
+  async getPrices(userId: string, symbols: string[]): Promise<Map<string, number | null>> {
     const entries = await Promise.all(
-      symbols.map(async (symbol) => [symbol, await this.getPrice(symbol)] as const),
+      symbols.map(async (symbol) => [symbol, await this.getPrice(userId, symbol)] as const),
     );
     return new Map(entries);
   }
 
   /** Get bid/ask spread for a symbol. */
-  async getSpread(symbol: string): Promise<{ bid: number; ask: number } | null> {
-    await this.getPrice(symbol); // populates cache
+  async getSpread(userId: string, symbol: string): Promise<{ bid: number; ask: number } | null> {
+    await this.getPrice(userId, symbol); // populates cache
     const cached = this.cache.get(symbol);
     return cached ? { bid: cached.bid, ask: cached.ask } : null;
   }

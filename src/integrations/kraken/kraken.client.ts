@@ -1,21 +1,16 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { createHash, createHmac } from 'crypto';
+import { KrakenCredentials } from '../../modules/exchange-credentials/exchange-credentials.service';
 
-@Injectable()
 export class KrakenClient {
-  private readonly logger = new Logger(KrakenClient.name);
   private readonly baseUrl = 'https://api.kraken.com';
   private readonly publicKey: string;
   private readonly privateKey: string;
+  readonly addressKey: string;
 
-  constructor(private readonly configService: ConfigService) {
-    this.publicKey = this.configService.get<string>('kraken.api.publicKey') ?? '';
-    this.privateKey = this.configService.get<string>('kraken.api.privateKey') ?? '';
-
-    if (!this.publicKey || !this.privateKey) {
-      this.logger.warn('KRAKEN_PUBLIC_KEY / KRAKEN_PRIVATE_KEY not set — private endpoints will fail');
-    }
+  constructor(credentials: KrakenCredentials) {
+    this.publicKey = credentials.publicKey;
+    this.privateKey = credentials.privateKey;
+    this.addressKey = credentials.addressKey ?? '';
   }
 
   request({ method = 'GET', path = '', query = {}, body = {} as Record<string, any> }) {
@@ -26,25 +21,17 @@ export class KrakenClient {
     }
 
     const headers: Record<string, string> = {};
-    let bodyString: string | null = null;
+    let bodyString: string | undefined;
 
-    if (Object.keys(body).length > 0) {
+    if (method !== 'GET') {
       if (!body['nonce']) body['nonce'] = this.nonce();
-      bodyString = JSON.stringify(body);
-      headers['Content-Type'] = 'application/json';
-    }
-
-    if (this.publicKey) {
-      const nonce: string = body['nonce'] ?? this.nonce();
+      bodyString = this.toURLParams(body).toString();
+      headers['Content-Type'] = 'application/x-www-form-urlencoded';
       headers['API-Key'] = this.publicKey;
-      headers['API-Sign'] = this.sign(path, nonce, bodyString ?? '');
+      headers['API-Sign'] = this.sign(path, body['nonce'], bodyString);
     }
 
-    return fetch(url, {
-      method,
-      headers,
-      body: method === 'GET' ? undefined : bodyString,
-    });
+    return fetch(url, { method, headers, body: bodyString });
   }
 
   private nonce(): string {

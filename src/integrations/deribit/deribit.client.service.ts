@@ -4,58 +4,43 @@ import {
   Injectable,
   Logger,
   OnModuleDestroy,
-  OnModuleInit,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DeribitApiClient, GrantType, RequestQuery } from '@wrytes/deribit-api-client';
+import { ExchangeCredentialsService } from '../../modules/exchange-credentials/exchange-credentials.service';
 
 const WS_OPEN = 1; // WebSocket.OPEN
 
 @Injectable()
-export class DeribitClientService implements OnModuleInit, OnModuleDestroy {
+export class DeribitClientService implements OnModuleDestroy {
   private readonly logger = new Logger(DeribitClientService.name);
-  private client: DeribitApiClient | null = null;
+  private readonly clients = new Map<string, DeribitApiClient>();
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly exchangeCredentials: ExchangeCredentialsService,
+  ) {}
 
-  onModuleInit() {
-    const clientId = this.configService.get<string>('deribit.clientId');
-    const clientSecret = this.configService.get<string>('deribit.clientSecret');
-
-    if (!clientId || !clientSecret) {
-      this.logger.warn('DERIBIT_CLIENT_ID / DERIBIT_CLIENT_SECRET not set — Deribit endpoints will fail');
-      return;
+  async getClientForUser(userId: string, timeoutMs = 8000): Promise<DeribitApiClient> {
+    if (this.clients.has(userId)) {
+      const client = this.clients.get(userId)!;
+      await this.waitForSocketOpen(client, timeoutMs);
+      return client;
     }
 
-    this.client = new DeribitApiClient({
+    const credentials = await this.exchangeCredentials.getDeribitCredentials(userId);
+    const client = new DeribitApiClient({
       type: GrantType.client_credentials,
       baseUrl: this.configService.get<string>('deribit.baseUrl')!,
-      clientId,
-      clientSecret,
+      clientId: credentials.clientId,
+      clientSecret: credentials.clientSecret,
     });
 
-    this.logger.log(`Deribit client connecting to ${this.configService.get('deribit.baseUrl')}`);
-  }
+    this.clients.set(userId, client);
+    this.logger.log(`Deribit client created for user ${userId}`);
 
-  async getClient(timeoutMs = 8000): Promise<DeribitApiClient> {
-    if (!this.client) {
-      const clientId = this.configService.get<string>('deribit.clientId');
-      const clientSecret = this.configService.get<string>('deribit.clientSecret');
-
-      if (!clientId || !clientSecret) {
-        throw new BadGatewayException('Deribit credentials not configured');
-      }
-
-      this.client = new DeribitApiClient({
-        type: GrantType.client_credentials,
-        baseUrl: this.configService.get<string>('deribit.baseUrl')!,
-        clientId,
-        clientSecret,
-      });
-    }
-
-    await this.waitForSocketOpen(this.client, timeoutMs);
-    return this.client;
+    await this.waitForSocketOpen(client, timeoutMs);
+    return client;
   }
 
   /**
@@ -88,8 +73,10 @@ export class DeribitClientService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleDestroy() {
-    this.client?.close();
-    this.client = null;
-    this.logger.log('Deribit client closed');
+    for (const client of this.clients.values()) {
+      client.close();
+    }
+    this.clients.clear();
+    this.logger.log('All Deribit clients closed');
   }
 }

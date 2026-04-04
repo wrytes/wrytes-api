@@ -33,6 +33,7 @@ import { WalletModule } from './integrations/wallet/wallet.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
+import { ExchangeCredentialsModule } from './modules/exchange-credentials/exchange-credentials.module';
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
@@ -96,6 +97,7 @@ import { AppService } from './app.service';
     DeribitModule,
     SafeModule,
     AuthModule,
+    ExchangeCredentialsModule,
     WalletModule,
     EventsModule,
   ],

@@ -1,5 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import type { User } from '@prisma/client';
 import { KrakenBalance } from './kraken.balance';
 import { KrakenWithdraw } from './kraken.withdraw';
 import { KrakenDeposit } from './kraken.deposit';
@@ -8,6 +9,7 @@ import { KrakenOrders } from './kraken.orders';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Kraken')
 @Controller('kraken')
@@ -29,8 +31,8 @@ export class KrakenController {
 
 	@Get('balance')
 	@ApiOperation({ summary: 'Account balance for all assets' })
-	getBalance() {
-		return this.balance.getBalance();
+	getBalance(@CurrentUser() user: User) {
+		return this.balance.getBalance(user.id);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -40,15 +42,15 @@ export class KrakenController {
 	@Get('market/ticker')
 	@ApiOperation({ summary: 'Ticker information for a trading pair' })
 	@ApiQuery({ name: 'pair', example: 'USDT/CHF' })
-	getTicker(@Query('pair') pair: string) {
-		return this.market.getTicker(pair);
+	getTicker(@CurrentUser() user: User, @Query('pair') pair: string) {
+		return this.market.getTicker(user.id, pair);
 	}
 
 	@Get('market/price')
 	@ApiOperation({ summary: 'Last-trade price for a token symbol' })
 	@ApiQuery({ name: 'symbol', example: 'CHF' })
-	async getPrice(@Query('symbol') symbol: string) {
-		const price = await this.market.getPrice(symbol);
+	async getPrice(@CurrentUser() user: User, @Query('symbol') symbol: string) {
+		const price = await this.market.getPrice(user.id, symbol);
 		return { symbol, price };
 	}
 
@@ -58,8 +60,8 @@ export class KrakenController {
 
 	@Get('orders/open')
 	@ApiOperation({ summary: 'All currently open orders' })
-	getOpenOrders() {
-		return this.orders.getOpenOrders();
+	getOpenOrders(@CurrentUser() user: User) {
+		return this.orders.getOpenOrders(user.id);
 	}
 
 	@Get('orders/info')
@@ -67,10 +69,11 @@ export class KrakenController {
 	@ApiQuery({ name: 'txid', example: 'OWKHYJ-OL2BD-GKSSXH' })
 	@ApiQuery({ name: 'trades', required: false, type: Boolean })
 	getOrderInfo(
+		@CurrentUser() user: User,
 		@Query('txid') txid: string,
 		@Query('trades') trades?: boolean,
 	) {
-		return this.orders.getOrderInfo({ txid, trades });
+		return this.orders.getOrderInfo(user.id, { txid, trades });
 	}
 
 	// ---------------------------------------------------------------------------
@@ -82,10 +85,11 @@ export class KrakenController {
 	@ApiQuery({ name: 'asset', required: false, example: 'USDT' })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
 	getWithdrawStatus(
+		@CurrentUser() user: User,
 		@Query('asset') asset?: string,
 		@Query('limit') limit?: string,
 	) {
-		return this.withdraw.withdrawStatus({
+		return this.withdraw.withdrawStatus(user.id, {
 			asset,
 			limit: parseInt(limit ?? '10'),
 		});
@@ -98,8 +102,8 @@ export class KrakenController {
 	@Get('deposit/methods')
 	@ApiOperation({ summary: 'Available deposit methods for an asset' })
 	@ApiQuery({ name: 'asset', example: 'USDT' })
-	getDepositMethods(@Query('asset') asset: string) {
-		return this.deposit.getMethods({ asset });
+	getDepositMethods(@CurrentUser() user: User, @Query('asset') asset: string) {
+		return this.deposit.getMethods(user.id, { asset });
 	}
 
 	@Get('deposit/addresses')
@@ -113,11 +117,12 @@ export class KrakenController {
 		description: 'Generate a new address',
 	})
 	getDepositAddresses(
+		@CurrentUser() user: User,
 		@Query('asset') asset: string,
 		@Query('method') method: string,
 		@Query('new') newAddress?: boolean,
 	) {
-		return this.deposit.getAddresses({ asset, method, new: newAddress });
+		return this.deposit.getAddresses(user.id, { asset, method, new: newAddress });
 	}
 
 	@Get('deposit/status')
@@ -125,10 +130,11 @@ export class KrakenController {
 	@ApiQuery({ name: 'asset', required: false, example: 'USDT' })
 	@ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
 	getDepositStatus(
+		@CurrentUser() user: User,
 		@Query('asset') asset?: string,
 		@Query('limit') limit?: string,
 	) {
-		return this.deposit.getStatus({
+		return this.deposit.getStatus(user.id, {
 			asset,
 			limit: parseInt(limit ?? '10'),
 		});

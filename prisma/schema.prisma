@@ -19,10 +19,11 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  apiKeys      ApiKey[]
-  magicLinks   MagicLink[]
-  scopes       UserScope[]
-  safeWallets  SafeWallet[]
+  apiKeys              ApiKey[]
+  magicLinks           MagicLink[]
+  scopes               UserScope[]
+  safeWallets          SafeWallet[]
+  exchangeCredentials  ExchangeCredential[]
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +95,31 @@ model SafeWallet {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chainId, label])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Exchange credentials
+// ---------------------------------------------------------------------------
+
+enum Exchange {
+  KRAKEN
+  DERIBIT
+}
+
+model ExchangeCredential {
+  id            String   @id @default(cuid())
+  userId        String
+  exchange      Exchange
+  label         String   @default("default")
+  encryptedData String   // AES-256-GCM: base64(iv).base64(authTag).base64(ciphertext)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, exchange, label])
   @@index([userId])
 }
 

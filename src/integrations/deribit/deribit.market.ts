@@ -18,47 +18,49 @@ type InstrumentKind = 'future' | 'option' | 'spot' | 'future_combo' | 'option_co
 export class DeribitMarket {
   constructor(private readonly client: DeribitClientService) {}
 
-  async getCurrencies(): Promise<MarketGetCurrenciesResult> {
-    const c = await this.client.getClient();
+  async getCurrencies(userId: string): Promise<MarketGetCurrenciesResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getCurrencies({}));
   }
 
-  async getIndexPrice(index_name: string): Promise<MarketGetIndexPriceResult> {
-    const c = await this.client.getClient();
+  async getIndexPrice(userId: string, index_name: string): Promise<MarketGetIndexPriceResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getIndexPrice({ index_name }));
   }
 
   async getInstruments(
+    userId: string,
     currency: Currency,
     kind?: InstrumentKind,
     expired?: boolean,
   ): Promise<MarketGetInstrumentsResult[]> {
-    const c = await this.client.getClient();
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getInstruments({ currency, kind, expired }));
   }
 
-  async getBookSummaryByCurrency(currency: Currency): Promise<MarketGetBookSummaryByCurrencyResult> {
-    const c = await this.client.getClient();
+  async getBookSummaryByCurrency(userId: string, currency: Currency): Promise<MarketGetBookSummaryByCurrencyResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getBookSummaryByCurrency({ currency }));
   }
 
-  async getBookSummaryByInstrument(instrument_name: string): Promise<MarketGetBookSummaryByInstrumentResult> {
-    const c = await this.client.getClient();
+  async getBookSummaryByInstrument(userId: string, instrument_name: string): Promise<MarketGetBookSummaryByInstrumentResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getBookSummaryByInstrument({ instrument_name }));
   }
 
-  async getDeliveryPrices(index_name: MarketGetDeliveryPricesNames): Promise<MarketGetDeliveryPricesResult> {
-    const c = await this.client.getClient();
+  async getDeliveryPrices(userId: string, index_name: MarketGetDeliveryPricesNames): Promise<MarketGetDeliveryPricesResult> {
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(await c.market.getDeliveryPrices({ index_name }));
   }
 
   async getVolatilityIndexData(
+    userId: string,
     currency: string,
     start_timestamp: number,
     end_timestamp: number,
     resolution: string,
   ): Promise<MarketGetVolatilityIndexDataResult> {
-    const c = await this.client.getClient();
+    const c = await this.client.getClientForUser(userId);
     return this.client.unwrap(
       await c.market.getVolatilityIndexData({ currency, start_timestamp, end_timestamp, resolution }),
     );
