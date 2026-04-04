@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { OnEvent } from '@nestjs/event-emitter';
 import { PrismaService } from '../../core/database/prisma.service';
 import { TelegramService } from '../../integrations/telegram/telegram.service';
-import { NotificationEvent, NotificationLevel } from '../events/notification.events';
+import { AdminNotificationEvent, NotificationEvent, NotificationLevel } from '../events/notification.events';
 
 const LEVEL_EMOJI: Record<NotificationLevel, string> = {
   info: 'ℹ️',
@@ -35,5 +35,24 @@ export class NotificationListener {
     await this.telegramService.sendMarkdownMessage(chatId, message).catch((err) => {
       this.logger.error(`Failed to send notification to user ${event.userId}: ${err.message}`);
     });
+  }
+
+  @OnEvent('notification.admin')
+  async handleAdminNotification(event: AdminNotificationEvent) {
+    const adminScopes = await this.prisma.userScope.findMany({
+      where: { scopeKey: 'ADMIN' },
+      include: { user: true },
+    });
+
+    const emoji = LEVEL_EMOJI[event.level];
+    const message = `${emoji} *${event.title}*\n\n${event.message}`;
+
+    await Promise.all(
+      adminScopes.map(({ user }) =>
+        this.telegramService.sendMarkdownMessage(Number(user.telegramId), message).catch((err) => {
+          this.logger.error(`Failed to send admin notification to user ${user.id}: ${err.message}`);
+        }),
+      ),
+    );
   }
 }

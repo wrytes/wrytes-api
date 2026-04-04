@@ -6,11 +6,13 @@ import {
   Headers,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ConfigService } from '@nestjs/config';
 import { InjectBot } from 'nestjs-telegraf';
 import { Telegraf } from 'telegraf';
 import * as crypto from 'crypto';
 
+@ApiTags('Telegram')
 @Controller('telegram')
 export class TelegramController {
   private readonly logger = new Logger(TelegramController.name);
@@ -27,6 +29,7 @@ export class TelegramController {
   }
 
   @Post('webhook')
+  @ApiOperation({ summary: 'Receive Telegram bot updates', description: 'Called by the Telegram Bot API. Validates the secret token before forwarding the update to the bot.' })
   async handleWebhook(
     @Body() update: any,
     @Headers('x-telegram-bot-api-secret-token') secretToken?: string,

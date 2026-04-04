@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import Safe from '@safe-global/protocol-kit';
 import { keccak256, toHex } from 'viem';
 import { PrismaService } from '../../core/database/prisma.service';
+import { AdminNotificationEvent } from '../../common/events/notification.events';
 import { WalletService } from '../wallet/wallet.service';
 import { WalletViemService } from '../wallet/wallet.viem.service';
 import { ChainId, ALCHEMY_CHAIN_SLUGS } from '../wallet/wallet.types';
@@ -18,6 +20,7 @@ export class SafeService {
 		private readonly wallet: WalletService,
 		private readonly viemService: WalletViemService,
 		private readonly configService: ConfigService,
+		private readonly eventEmitter: EventEmitter2,
 	) {}
 
 	private deriveSaltNonce(userId: string, chainId: ChainId, label: string): string {
@@ -109,5 +112,14 @@ export class SafeService {
 		});
 
 		this.logger.log(`Safe deployed at ${safeWallet.address} (tx: ${hash})`);
+
+		this.eventEmitter.emit(
+			'notification.admin',
+			new AdminNotificationEvent(
+				'Safe Deployed',
+				`User \`${userId}\` deployed a Safe on chain ${chainId} \\[${label}\\]\nAddress: \`${safeWallet.address}\`\nTx: \`${hash}\``,
+				'success',
+			),
+		);
 	}
 }

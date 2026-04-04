@@ -4,7 +4,9 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../core/database/prisma.service';
+import { AdminNotificationEvent } from '../../common/events/notification.events';
 import { nanoid } from 'nanoid';
 import * as bcrypt from 'bcrypt';
 
@@ -17,7 +19,10 @@ export class AuthService {
   private readonly MAGIC_LINK_TOKEN_LENGTH = 32;
   private readonly MAGIC_LINK_EXPIRY_MINUTES = 15;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eventEmitter: EventEmitter2,
+  ) {}
 
   async createMagicLink(userId: string): Promise<{ token: string; expiresAt: Date }> {
     this.logger.log(`Creating magic link for user ${userId}`);
@@ -114,6 +119,17 @@ export class AuthService {
         where: { id: user.id },
         data: { telegramHandle },
       });
+    }
+
+    if (isNew) {
+      this.eventEmitter.emit(
+        'notification.admin',
+        new AdminNotificationEvent(
+          'New User',
+          `@${telegramHandle ?? 'unknown'} joined \\(Telegram ID: \`${telegramId}\`\\)`,
+          'info',
+        ),
+      );
     }
 
     return { id: user.id, isNew };
