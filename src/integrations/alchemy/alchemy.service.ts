@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  BadGatewayException,
-} from '@nestjs/common';
+import { Injectable, Logger, BadGatewayException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AlchemyCacheService } from './alchemy.cache.service';
 import {
@@ -16,25 +12,27 @@ import {
 @Injectable()
 export class AlchemyService {
   private readonly logger = new Logger(AlchemyService.name);
-  private readonly baseUrl: string;
+  private readonly apiKey: string;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly cache: AlchemyCacheService,
   ) {
-    const apiKey = this.configService.get<string>('alchemy.apiKey') ?? '';
-    const network = this.configService.get<string>('alchemy.network') ?? 'eth-mainnet';
-    this.baseUrl = `https://${network}.g.alchemy.com/v2/${apiKey}`;
+    this.apiKey = this.configService.get<string>('alchemy.apiKey') ?? '';
+  }
+
+  private url(chain: string): string {
+    return `https://${chain}.g.alchemy.com/v2/${this.apiKey}`;
   }
 
   // ---------------------------------------------------------------------------
   // Core RPC helper
   // ---------------------------------------------------------------------------
 
-  private async rpc<T>(method: string, params: any[]): Promise<T> {
+  private async rpc<T>(chain: string, method: string, params: any[]): Promise<T> {
     let res: Response;
     try {
-      res = await fetch(this.baseUrl, {
+      res = await fetch(this.url(chain), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
@@ -44,7 +42,18 @@ export class AlchemyService {
       throw new BadGatewayException('Failed to reach Alchemy API');
     }
 
-    const data: AlchemyRpcResponse<T> = await res.json();
+    const text = await res.text();
+
+    if (!res.ok) {
+      throw new BadGatewayException(`Alchemy: ${text.trim()}`);
+    }
+
+    let data: AlchemyRpcResponse<T>;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new BadGatewayException(`Alchemy: ${text.trim()}`);
+    }
 
     if (data.error) {
       throw new BadGatewayException(`Alchemy: ${data.error.message}`);
@@ -54,16 +63,18 @@ export class AlchemyService {
   }
 
   private async cachedRpc<T>(
+    chain: string,
     cacheType: CacheType,
     cacheKey: Record<string, any>,
     method: string,
     params: any[],
   ): Promise<T> {
-    const cached = await this.cache.get<T>(cacheType, cacheKey);
+    const key = { chain, ...cacheKey };
+    const cached = await this.cache.get<T>(cacheType, key);
     if (cached) return cached;
 
-    const result = await this.rpc<T>(method, params);
-    await this.cache.set(cacheType, cacheKey, result);
+    const result = await this.rpc<T>(chain, method, params);
+    await this.cache.set(cacheType, key, result);
     return result;
   }
 
@@ -71,12 +82,10 @@ export class AlchemyService {
   // Balance
   // ---------------------------------------------------------------------------
 
-  async getBalance(address: string): Promise<string> {
+  async getBalance(chain: string, address: string): Promise<string> {
     const hex = await this.cachedRpc<string>(
-      CacheType.BALANCE,
-      { address },
-      'eth_getBalance',
-      [address, 'latest'],
+      chain, CacheType.BALANCE, { address },
+      'eth_getBalance', [address, 'latest'],
     );
     return BigInt(hex).toString();
   }
@@ -86,12 +95,9 @@ export class AlchemyService {
   // ---------------------------------------------------------------------------
 
   async getTransactions(
-    address: string,
-    direction: 'from' | 'to',
-    limit: number,
-    pageKey?: string,
+    chain: string, address: string, direction: 'from' | 'to', limit: number, pageKey?: string,
   ): Promise<AssetTransfersResult> {
-    return this.getAssetTransfers(CacheType.TRANSACTIONS, {
+    return this.assetTransfers(chain, CacheType.TRANSACTIONS, {
       [direction === 'from' ? 'fromAddress' : 'toAddress']: address,
       category: ['external'],
       withMetadata: true,
@@ -102,12 +108,9 @@ export class AlchemyService {
   }
 
   async getInternalTransactions(
-    address: string,
-    direction: 'from' | 'to',
-    limit: number,
-    pageKey?: string,
+    chain: string, address: string, direction: 'from' | 'to', limit: number, pageKey?: string,
   ): Promise<AssetTransfersResult> {
-    return this.getAssetTransfers(CacheType.INTERNAL_TXS, {
+    return this.assetTransfers(chain, CacheType.INTERNAL_TXS, {
       [direction === 'from' ? 'fromAddress' : 'toAddress']: address,
       category: ['internal'],
       withMetadata: true,
@@ -122,12 +125,9 @@ export class AlchemyService {
   // ---------------------------------------------------------------------------
 
   async getTokenTransfers(
-    address: string,
-    direction: 'from' | 'to',
-    limit: number,
-    pageKey?: string,
+    chain: string, address: string, direction: 'from' | 'to', limit: number, pageKey?: string,
   ): Promise<AssetTransfersResult> {
-    return this.getAssetTransfers(CacheType.TOKEN_TRANSFERS, {
+    return this.assetTransfers(chain, CacheType.TOKEN_TRANSFERS, {
       [direction === 'from' ? 'fromAddress' : 'toAddress']: address,
       category: ['erc20'],
       withMetadata: true,
@@ -138,13 +138,9 @@ export class AlchemyService {
   }
 
   async getContractTokenTransfers(
-    address: string,
-    contract: string,
-    direction: 'from' | 'to',
-    limit: number,
-    pageKey?: string,
+    chain: string, address: string, contract: string, direction: 'from' | 'to', limit: number, pageKey?: string,
   ): Promise<AssetTransfersResult> {
-    return this.getAssetTransfers(CacheType.TOKEN_TRANSFERS, {
+    return this.assetTransfers(chain, CacheType.TOKEN_TRANSFERS, {
       [direction === 'from' ? 'fromAddress' : 'toAddress']: address,
       contractAddresses: [contract],
       category: ['erc20'],
@@ -159,24 +155,20 @@ export class AlchemyService {
   // Token balances
   // ---------------------------------------------------------------------------
 
-  async getTokenBalances(address: string, pageKey?: string): Promise<TokenBalancesResult> {
+  async getTokenBalances(chain: string, address: string, pageKey?: string): Promise<TokenBalancesResult> {
     const params: any[] = [address, 'erc20'];
     if (pageKey) params.push({ pageKey });
 
     return this.cachedRpc<TokenBalancesResult>(
-      CacheType.TOKEN_BALANCES,
-      { address, pageKey },
-      'alchemy_getTokenBalances',
-      params,
+      chain, CacheType.TOKEN_BALANCES, { address, pageKey },
+      'alchemy_getTokenBalances', params,
     );
   }
 
-  async getTokenBalance(address: string, contract: string): Promise<TokenBalance> {
+  async getTokenBalance(chain: string, address: string, contract: string): Promise<TokenBalance> {
     const result = await this.cachedRpc<TokenBalancesResult>(
-      CacheType.TOKEN_BALANCE,
-      { address, contract },
-      'alchemy_getTokenBalances',
-      [address, [contract]],
+      chain, CacheType.TOKEN_BALANCE, { address, contract },
+      'alchemy_getTokenBalances', [address, [contract]],
     );
     return result.tokenBalances[0];
   }
@@ -185,27 +177,20 @@ export class AlchemyService {
   // Cache management
   // ---------------------------------------------------------------------------
 
-  getCacheStats() {
-    return this.cache.getStats();
-  }
+  getCacheStats() { return this.cache.getStats(); }
 
-  async cleanupCache(): Promise<void> {
-    await this.cache.cleanup();
-  }
+  async cleanupCache(): Promise<void> { await this.cache.cleanup(); }
 
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  private async getAssetTransfers(
-    cacheType: CacheType,
-    transferParams: Record<string, any>,
+  private async assetTransfers(
+    chain: string, cacheType: CacheType, transferParams: Record<string, any>,
   ): Promise<AssetTransfersResult> {
     return this.cachedRpc<AssetTransfersResult>(
-      cacheType,
-      transferParams,
-      'alchemy_getAssetTransfers',
-      [transferParams],
+      chain, cacheType, transferParams,
+      'alchemy_getAssetTransfers', [transferParams],
     );
   }
 }

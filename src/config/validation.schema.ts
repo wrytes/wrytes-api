@@ -26,7 +26,6 @@ export const validationSchema = Joi.object({
 
 	// Alchemy
 	ALCHEMY_API_KEY: Joi.string().allow('').optional(),
-	ALCHEMY_NETWORK: Joi.string().allow('').optional(),
 
 	// Logging
 	LOG_LEVEL: Joi.string()

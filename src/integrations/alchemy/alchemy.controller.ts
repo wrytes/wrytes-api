@@ -25,7 +25,7 @@ import { ListQueryDto } from './dtos/ListQuery.dto';
 import { TokenBalancesQueryDto } from './dtos/TokenBalancesQuery.dto';
 
 @ApiTags('Alchemy')
-@Controller('account')
+@Controller('chains/:chain/account')
 @UseGuards(ApiKeyGuard, ScopesGuard)
 @ApiSecurity('api-key')
 export class AlchemyController {
@@ -38,11 +38,11 @@ export class AlchemyController {
   @Get(':address/balance')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get ETH balance (wei)' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug (e.g. eth-mainnet, base-mainnet)' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
-  @ApiResponse({ status: 200 })
-  async getBalance(@Param('address') address: string) {
-    const balance = await this.alchemyService.getBalance(address);
-    return { address, balance };
+  async getBalance(@Param('chain') chain: string, @Param('address') address: string) {
+    const balance = await this.alchemyService.getBalance(chain, address);
+    return { chain, address, balance };
   }
 
   // ---------------------------------------------------------------------------
@@ -52,25 +52,25 @@ export class AlchemyController {
   @Get(':address/transactions')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get external transactions' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiQuery({ name: 'direction', enum: ['from', 'to'], required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'pageKey', required: false })
-  @ApiResponse({ status: 200 })
-  async getTransactions(@Param('address') address: string, @Query() query: ListQueryDto) {
-    return this.alchemyService.getTransactions(address, query.direction, query.limit, query.pageKey);
+  async getTransactions(@Param('chain') chain: string, @Param('address') address: string, @Query() query: ListQueryDto) {
+    return this.alchemyService.getTransactions(chain, address, query.direction ?? 'from', query.limit ?? 50, query.pageKey);
   }
 
   @Get(':address/internal-transactions')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get internal transactions' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiQuery({ name: 'direction', enum: ['from', 'to'], required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'pageKey', required: false })
-  @ApiResponse({ status: 200 })
-  async getInternalTransactions(@Param('address') address: string, @Query() query: ListQueryDto) {
-    return this.alchemyService.getInternalTransactions(address, query.direction, query.limit, query.pageKey);
+  async getInternalTransactions(@Param('chain') chain: string, @Param('address') address: string, @Query() query: ListQueryDto) {
+    return this.alchemyService.getInternalTransactions(chain, address, query.direction ?? 'from', query.limit ?? 50, query.pageKey);
   }
 
   // ---------------------------------------------------------------------------
@@ -80,31 +80,33 @@ export class AlchemyController {
   @Get(':address/token/:contract/transfers')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get ERC-20 transfers for a specific token' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiParam({ name: 'contract', description: 'ERC-20 contract address' })
   @ApiQuery({ name: 'direction', enum: ['from', 'to'], required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'pageKey', required: false })
-  @ApiResponse({ status: 200 })
   async getContractTokenTransfers(
+    @Param('chain') chain: string,
     @Param('address') address: string,
     @Param('contract') contract: string,
     @Query() query: ListQueryDto,
   ) {
-    return this.alchemyService.getContractTokenTransfers(address, contract, query.direction, query.limit, query.pageKey);
+    return this.alchemyService.getContractTokenTransfers(chain, address, contract, query.direction ?? 'from', query.limit ?? 50, query.pageKey);
   }
 
   @Get(':address/token/:contract/balance')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get ERC-20 balance for a specific token' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiParam({ name: 'contract', description: 'ERC-20 contract address' })
-  @ApiResponse({ status: 200 })
   async getTokenBalance(
+    @Param('chain') chain: string,
     @Param('address') address: string,
     @Param('contract') contract: string,
   ) {
-    return this.alchemyService.getTokenBalance(address, contract);
+    return this.alchemyService.getTokenBalance(chain, address, contract);
   }
 
   // ---------------------------------------------------------------------------
@@ -114,23 +116,23 @@ export class AlchemyController {
   @Get(':address/token-balances')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get all ERC-20 token balances' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiQuery({ name: 'pageKey', required: false })
-  @ApiResponse({ status: 200 })
-  async getTokenBalances(@Param('address') address: string, @Query() query: TokenBalancesQueryDto) {
-    return this.alchemyService.getTokenBalances(address, query.pageKey);
+  async getTokenBalances(@Param('chain') chain: string, @Param('address') address: string, @Query() query: TokenBalancesQueryDto) {
+    return this.alchemyService.getTokenBalances(chain, address, query.pageKey);
   }
 
   @Get(':address/token-transfers')
   @RequireScopes(Scope.READ)
   @ApiOperation({ summary: 'Get all ERC-20 token transfers' })
+  @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
   @ApiQuery({ name: 'direction', enum: ['from', 'to'], required: false })
   @ApiQuery({ name: 'limit', required: false })
   @ApiQuery({ name: 'pageKey', required: false })
-  @ApiResponse({ status: 200 })
-  async getTokenTransfers(@Param('address') address: string, @Query() query: ListQueryDto) {
-    return this.alchemyService.getTokenTransfers(address, query.direction, query.limit, query.pageKey);
+  async getTokenTransfers(@Param('chain') chain: string, @Param('address') address: string, @Query() query: ListQueryDto) {
+    return this.alchemyService.getTokenTransfers(chain, address, query.direction ?? 'from', query.limit ?? 50, query.pageKey);
   }
 
   // ---------------------------------------------------------------------------
