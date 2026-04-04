@@ -14,6 +14,7 @@ import aiConfig from './config/ai.config';
 import alchemyConfig from './config/alchemy.config';
 import oneinchConfig from './config/oneinch.config';
 import krakenConfig from './config/kraken.config';
+import deribitConfig from './config/deribit.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -26,6 +27,7 @@ import { AiModule } from './integrations/ai/ai.module';
 import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 import { OneInchModule } from './integrations/oneinch/oneinch.module';
 import { KrakenModule } from './integrations/kraken/kraken.module';
+import { DeribitModule } from './integrations/deribit/deribit.module';
 import { WalletModule } from './integrations/wallet/wallet.module';
 
 // Feature modules
@@ -42,7 +44,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig, krakenConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig, krakenConfig, deribitConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -90,6 +92,7 @@ import { AppService } from './app.service';
     AlchemyModule,
     OneInchModule,
     KrakenModule,
+    DeribitModule,
     AuthModule,
     WalletModule,
     EventsModule,

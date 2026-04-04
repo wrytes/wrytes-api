@@ -38,6 +38,11 @@ export const validationSchema = Joi.object({
 	KRAKEN_PRIVATE_KEY: Joi.string().allow('').optional(),
 	KRAKEN_ADDRESS_KEY: Joi.string().allow('').optional(),
 
+	// Deribit
+	DERIBIT_CLIENT_ID: Joi.string().allow('').optional(),
+	DERIBIT_CLIENT_SECRET: Joi.string().allow('').optional(),
+	DERIBIT_BASE_URL: Joi.string().allow('').optional(),
+
 	// Logging
 	LOG_LEVEL: Joi.string()
 		.valid('fatal', 'error', 'warn', 'info', 'debug', 'trace')
