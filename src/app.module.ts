@@ -13,6 +13,7 @@ import telegramConfig from './config/telegram.config';
 import aiConfig from './config/ai.config';
 import alchemyConfig from './config/alchemy.config';
 import oneinchConfig from './config/oneinch.config';
+import krakenConfig from './config/kraken.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -24,6 +25,7 @@ import { TelegramModule } from './integrations/telegram/telegram.module';
 import { AiModule } from './integrations/ai/ai.module';
 import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 import { OneInchModule } from './integrations/oneinch/oneinch.module';
+import { KrakenModule } from './integrations/kraken/kraken.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -40,7 +42,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig, krakenConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -87,6 +89,7 @@ import { AppService } from './app.service';
     AiModule,
     AlchemyModule,
     OneInchModule,
+    KrakenModule,
     AuthModule,
     WalletModule,
     EventsModule,

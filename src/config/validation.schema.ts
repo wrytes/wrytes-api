@@ -33,6 +33,11 @@ export const validationSchema = Joi.object({
 	// 1inch
 	ONEINCH_API_KEY: Joi.string().allow('').optional(),
 
+	// Kraken
+	KRAKEN_PUBLIC_KEY: Joi.string().allow('').optional(),
+	KRAKEN_PRIVATE_KEY: Joi.string().allow('').optional(),
+	KRAKEN_ADDRESS_KEY: Joi.string().allow('').optional(),
+
 	// Logging
 	LOG_LEVEL: Joi.string()
 		.valid('fatal', 'error', 'warn', 'info', 'debug', 'trace')
