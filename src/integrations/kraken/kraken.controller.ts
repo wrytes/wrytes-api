@@ -1,6 +1,8 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { KrakenBalance } from './kraken.balance';
+import { KrakenWithdraw } from './kraken.withdraw';
+import { KrakenDeposit } from './kraken.deposit';
 import { KrakenMarket } from './kraken.market';
 import { KrakenOrders } from './kraken.orders';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
@@ -15,9 +17,15 @@ import { RequireScopes } from '../../common/decorators/require-scopes.decorator'
 export class KrakenController {
   constructor(
     private readonly balance: KrakenBalance,
+    private readonly withdraw: KrakenWithdraw,
+    private readonly deposit: KrakenDeposit,
     private readonly market: KrakenMarket,
     private readonly orders: KrakenOrders,
   ) {}
+
+  // ---------------------------------------------------------------------------
+  // Balance
+  // ---------------------------------------------------------------------------
 
   @Get('balance')
   @ApiOperation({ summary: 'Account balance for all assets' })
@@ -25,16 +33,20 @@ export class KrakenController {
     return this.balance.getBalance();
   }
 
+  // ---------------------------------------------------------------------------
+  // Market
+  // ---------------------------------------------------------------------------
+
   @Get('market/ticker')
   @ApiOperation({ summary: 'Ticker information for a trading pair' })
-  @ApiQuery({ name: 'pair', description: 'Kraken pair string (e.g. USDT/CHF)', example: 'USDT/CHF' })
+  @ApiQuery({ name: 'pair', example: 'USDT/CHF' })
   getTicker(@Query('pair') pair: string) {
     return this.market.getTicker(pair);
   }
 
   @Get('market/price')
   @ApiOperation({ summary: 'Last-trade price for a token symbol' })
-  @ApiQuery({ name: 'symbol', description: 'Token symbol (e.g. ZCHF, CHF)', example: 'ZCHF' })
+  @ApiQuery({ name: 'symbol', example: 'ZCHF' })
   async getPrice(@Query('symbol') symbol: string) {
     const price = await this.market.getPrice(symbol);
     return { symbol, price };
@@ -46,6 +58,10 @@ export class KrakenController {
     return { symbols: this.market.getSupportedSymbols() };
   }
 
+  // ---------------------------------------------------------------------------
+  // Orders
+  // ---------------------------------------------------------------------------
+
   @Get('orders/open')
   @ApiOperation({ summary: 'All currently open orders' })
   getOpenOrders() {
@@ -54,17 +70,53 @@ export class KrakenController {
 
   @Get('orders/info')
   @ApiOperation({ summary: 'Order details by transaction ID' })
-  @ApiQuery({ name: 'txid', description: 'Kraken order txid', example: 'OWKHYJ-OL2BD-GKSSXH' })
+  @ApiQuery({ name: 'txid', example: 'OWKHYJ-OL2BD-GKSSXH' })
   @ApiQuery({ name: 'trades', required: false, type: Boolean })
   getOrderInfo(@Query('txid') txid: string, @Query('trades') trades?: boolean) {
     return this.orders.getOrderInfo({ txid, trades });
   }
+
+  // ---------------------------------------------------------------------------
+  // Withdraw
+  // ---------------------------------------------------------------------------
 
   @Get('withdraw/status')
   @ApiOperation({ summary: 'Recent withdrawal status' })
   @ApiQuery({ name: 'asset', required: false, example: 'USDT' })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   getWithdrawStatus(@Query('asset') asset?: string, @Query('limit') limit?: string) {
-    return this.balance.withdrawStatus({ asset, limit: parseInt(limit ?? '10') });
+    return this.withdraw.withdrawStatus({ asset, limit: parseInt(limit ?? '10') });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Deposit
+  // ---------------------------------------------------------------------------
+
+  @Get('deposit/methods')
+  @ApiOperation({ summary: 'Available deposit methods for an asset' })
+  @ApiQuery({ name: 'asset', example: 'USDT' })
+  getDepositMethods(@Query('asset') asset: string) {
+    return this.deposit.getMethods({ asset });
+  }
+
+  @Get('deposit/addresses')
+  @ApiOperation({ summary: 'Deposit addresses for an asset and method' })
+  @ApiQuery({ name: 'asset', example: 'USDT' })
+  @ApiQuery({ name: 'method', example: 'Tether USD (ERC20)' })
+  @ApiQuery({ name: 'new', required: false, type: Boolean, description: 'Generate a new address' })
+  getDepositAddresses(
+    @Query('asset') asset: string,
+    @Query('method') method: string,
+    @Query('new') newAddress?: boolean,
+  ) {
+    return this.deposit.getAddresses({ asset, method, new: newAddress });
+  }
+
+  @Get('deposit/status')
+  @ApiOperation({ summary: 'Recent deposit status' })
+  @ApiQuery({ name: 'asset', required: false, example: 'USDT' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
+  getDepositStatus(@Query('asset') asset?: string, @Query('limit') limit?: string) {
+    return this.deposit.getStatus({ asset, limit: parseInt(limit ?? '10') });
   }
 }

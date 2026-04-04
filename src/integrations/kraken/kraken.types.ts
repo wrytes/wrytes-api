@@ -227,3 +227,75 @@ export type WithdrawStatusResponse = {
   error: any[];
   result: WithdrawalInfo[];
 };
+
+// ---------------------------------------------------------------------------
+// Deposit
+// ---------------------------------------------------------------------------
+
+export type DepositMethodsRequest = {
+  asset: string;
+  aclass?: 'currency' | 'tokenized_asset';
+};
+
+export type DepositMethod = {
+  method: string;
+  limit: string | false;
+  fee: string | false;
+  'address-setup-fee'?: string;
+  'gen-address': boolean;
+};
+
+export type DepositMethodsResponse = {
+  error: any[];
+  result: DepositMethod[];
+};
+
+export type DepositAddressesRequest = {
+  asset: string;
+  method: string;
+  aclass?: 'currency' | 'tokenized_asset';
+  new?: boolean;
+};
+
+export type DepositAddress = {
+  address: string;
+  expiretm: string;
+  new?: boolean;
+  memo?: string;
+  tag?: string;
+};
+
+export type DepositAddressesResponse = {
+  error: any[];
+  result: DepositAddress[];
+};
+
+export type DepositStatusRequest = {
+  asset?: string;
+  aclass?: 'currency' | 'tokenized_asset';
+  method?: string;
+  start?: string;
+  end?: string;
+  cursor?: boolean | string;
+  limit?: number;
+};
+
+export type DepositInfo = {
+  method: string;
+  network: string;
+  aclass: string;
+  asset: string;
+  refid: string;
+  txid: string;
+  info: string;
+  amount: string;
+  fee: string;
+  time: number;
+  status: 'Initial' | 'Pending' | 'Settled' | 'Success' | 'Failure';
+  'status-prop'?: 'return' | 'onhold';
+};
+
+export type DepositStatusResponse = {
+  error: any[];
+  result: DepositInfo[];
+};

@@ -26,10 +26,10 @@ import { AiModule } from './integrations/ai/ai.module';
 import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 import { OneInchModule } from './integrations/oneinch/oneinch.module';
 import { KrakenModule } from './integrations/kraken/kraken.module';
+import { WalletModule } from './integrations/wallet/wallet.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
-import { WalletModule } from './modules/wallet/wallet.module';
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
