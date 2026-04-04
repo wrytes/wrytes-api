@@ -1,45 +1,28 @@
-import {
-  Injectable,
-  CanActivate,
-  ExecutionContext,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, CanActivate, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { Scope } from '@prisma/client';
 import { SCOPES_KEY } from '../decorators/require-scopes.decorator';
 
 @Injectable()
 export class ScopesGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {}
 
   canActivate(context: ExecutionContext): boolean {
-    const requiredScopes = this.reflector.getAllAndOverride<Scope[]>(
-      SCOPES_KEY,
-      [context.getHandler(), context.getClass()],
-    );
+    const required = this.reflector.getAllAndOverride<string[]>(SCOPES_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
-    if (!requiredScopes || requiredScopes.length === 0) {
-      return true;
-    }
+    if (!required || required.length === 0) return true;
 
     const request = context.switchToHttp().getRequest();
-    const apiKey = request.apiKey;
+    const userScopes: string[] = request.userScopes ?? [];
 
-    if (!apiKey) {
-      throw new ForbiddenException('API key not found in request');
-    }
+    if (userScopes.includes('ADMIN')) return true;
 
-    if (apiKey.scopes.includes(Scope.ADMIN)) {
-      return true;
-    }
-
-    const hasAllScopes = requiredScopes.every((scope) =>
-      apiKey.scopes.includes(scope),
-    );
-
-    if (!hasAllScopes) {
+    const hasAll = required.every((s) => userScopes.includes(s));
+    if (!hasAll) {
       throw new ForbiddenException(
-        `Insufficient permissions. Required scopes: ${requiredScopes.join(', ')}`,
+        `Missing required scope(s): ${required.filter((s) => !userScopes.includes(s)).join(', ')}`,
       );
     }
 

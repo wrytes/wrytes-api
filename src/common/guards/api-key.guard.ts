@@ -34,7 +34,7 @@ export class ApiKeyGuard implements CanActivate {
 
     const apiKey = await this.prisma.apiKey.findUnique({
       where: { keyId },
-      include: { user: true },
+      include: { user: { include: { scopes: true } } },
     });
 
     if (!apiKey) {
@@ -65,6 +65,7 @@ export class ApiKeyGuard implements CanActivate {
       });
 
     request.user = apiKey.user;
+    request.userScopes = apiKey.user.scopes.map((s) => s.scopeKey);
     request.apiKey = apiKey;
 
     return true;

@@ -12,37 +12,54 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id             String   @id @default(cuid())
-  telegramId     BigInt   @unique
-  telegramHandle String?
+  id                   String  @id @default(cuid())
+  telegramId           BigInt  @unique
+  telegramHandle       String?
   notificationsEnabled Boolean @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   apiKeys    ApiKey[]
   magicLinks MagicLink[]
+  scopes     UserScope[]
+}
+
+// ---------------------------------------------------------------------------
+// Scopes / Permissions
+// ---------------------------------------------------------------------------
+
+/// Available scope keys: USER, ADMIN, AI, ALCHEMY, ...
+/// No entry for a user = no permission (default false).
+model Scope {
+  key         String  @id   // e.g. USER, ADMIN, AI, ALCHEMY
+  description String?
+
+  users UserScope[]
+}
+
+model UserScope {
+  userId   String
+  scopeKey String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope Scope @relation(fields: [scopeKey], references: [key], onDelete: Cascade)
+
+  @@id([userId, scopeKey])
 }
 
 // ---------------------------------------------------------------------------
 // Auth / API Keys
 // ---------------------------------------------------------------------------
 
-enum Scope {
-  READ
-  WRITE
-  ADMIN
-}
-
 model ApiKey {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
-  keyId      String   @unique
+  keyId      String    @unique
   secretHash String
-  scopes     Scope[]  @default([READ])
   expiresAt  DateTime?
   revokedAt  DateTime?
   lastUsedAt DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -51,7 +68,6 @@ model MagicLink {
   id        String    @id @default(cuid())
   userId    String
   token     String    @unique
-  scopes    Scope[]   @default([READ])
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())

@@ -20,7 +20,6 @@ import { AlchemyService } from './alchemy.service';
 import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
-import { Scope } from '@prisma/client';
 import { ListQueryDto } from './dtos/ListQuery.dto';
 import { TokenBalancesQueryDto } from './dtos/TokenBalancesQuery.dto';
 
@@ -36,7 +35,7 @@ export class AlchemyController {
   // ---------------------------------------------------------------------------
 
   @Get(':address/balance')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get ETH balance (wei)' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug (e.g. eth-mainnet, base-mainnet)' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -50,7 +49,7 @@ export class AlchemyController {
   // ---------------------------------------------------------------------------
 
   @Get(':address/transactions')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get external transactions' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -62,7 +61,7 @@ export class AlchemyController {
   }
 
   @Get(':address/internal-transactions')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get internal transactions' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -78,7 +77,7 @@ export class AlchemyController {
   // ---------------------------------------------------------------------------
 
   @Get(':address/token/:contract/transfers')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get ERC-20 transfers for a specific token' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -96,7 +95,7 @@ export class AlchemyController {
   }
 
   @Get(':address/token/:contract/balance')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get ERC-20 balance for a specific token' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -114,7 +113,7 @@ export class AlchemyController {
   // ---------------------------------------------------------------------------
 
   @Get(':address/token-balances')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get all ERC-20 token balances' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -124,7 +123,7 @@ export class AlchemyController {
   }
 
   @Get(':address/token-transfers')
-  @RequireScopes(Scope.READ)
+  @RequireScopes('ALCHEMY')
   @ApiOperation({ summary: 'Get all ERC-20 token transfers' })
   @ApiParam({ name: 'chain', description: 'Alchemy network slug' })
   @ApiParam({ name: 'address', description: 'Ethereum address' })
@@ -140,14 +139,14 @@ export class AlchemyController {
   // ---------------------------------------------------------------------------
 
   @Get('cache/stats')
-  @RequireScopes(Scope.ADMIN)
+  @RequireScopes('ADMIN')
   @ApiOperation({ summary: 'Cache statistics' })
   getCacheStats() {
     return this.alchemyService.getCacheStats();
   }
 
   @Post('cache/cleanup')
-  @RequireScopes(Scope.ADMIN)
+  @RequireScopes('ADMIN')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Trigger cache cleanup' })
   async cleanupCache() {
