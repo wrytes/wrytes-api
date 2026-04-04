@@ -28,6 +28,7 @@ import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 import { OneInchModule } from './integrations/oneinch/oneinch.module';
 import { KrakenModule } from './integrations/kraken/kraken.module';
 import { DeribitModule } from './integrations/deribit/deribit.module';
+import { SafeModule } from './integrations/safe/safe.module';
 import { WalletModule } from './integrations/wallet/wallet.module';
 
 // Feature modules
@@ -93,6 +94,7 @@ import { AppService } from './app.service';
     OneInchModule,
     KrakenModule,
     DeribitModule,
+    SafeModule,
     AuthModule,
     WalletModule,
     EventsModule,

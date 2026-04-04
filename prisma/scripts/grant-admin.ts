@@ -18,6 +18,7 @@ const ALL_SCOPES: { key: string; description: string }[] = [
 	{ key: 'WALLET', description: 'Access to company wallet endpoints' },
 	{ key: 'KRAKEN', description: 'Access to Kraken CEX endpoints' },
 	{ key: 'DERIBIT', description: 'Access to Deribit CEX endpoints' },
+	{ key: 'SAFE',   description: 'Access to Safe deposit wallet endpoints' },
 ];
 
 async function main() {
