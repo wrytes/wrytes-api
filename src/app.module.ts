@@ -25,6 +25,7 @@ import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
@@ -84,6 +85,7 @@ import { AppService } from './app.service';
     AiModule,
     AlchemyModule,
     AuthModule,
+    WalletModule,
     EventsModule,
   ],
   controllers: [AppController],
