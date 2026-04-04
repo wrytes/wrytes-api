@@ -30,6 +30,9 @@ export const validationSchema = Joi.object({
 	// Wallet
 	WALLET_PRIVATE_KEY: Joi.string().allow('').optional(),
 
+	// 1inch
+	ONEINCH_API_KEY: Joi.string().allow('').optional(),
+
 	// Logging
 	LOG_LEVEL: Joi.string()
 		.valid('fatal', 'error', 'warn', 'info', 'debug', 'trace')

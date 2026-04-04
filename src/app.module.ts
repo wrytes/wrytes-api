@@ -12,6 +12,7 @@ import redisConfig from './config/redis.config';
 import telegramConfig from './config/telegram.config';
 import aiConfig from './config/ai.config';
 import alchemyConfig from './config/alchemy.config';
+import oneinchConfig from './config/oneinch.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -22,6 +23,7 @@ import { HealthModule } from './core/health/health.module';
 import { TelegramModule } from './integrations/telegram/telegram.module';
 import { AiModule } from './integrations/ai/ai.module';
 import { AlchemyModule } from './integrations/alchemy/alchemy.module';
+import { OneInchModule } from './integrations/oneinch/oneinch.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -38,7 +40,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -84,6 +86,7 @@ import { AppService } from './app.service';
     TelegramModule,
     AiModule,
     AlchemyModule,
+    OneInchModule,
     AuthModule,
     WalletModule,
     EventsModule,
