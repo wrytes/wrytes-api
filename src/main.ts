@@ -62,7 +62,7 @@ async function bootstrap() {
       'api-key',
     )
     .addTag('Authentication', 'API key management and verification')
-    .addTag('Etherscan', 'Ethereum chain data via Etherscan API')
+    .addTag('Alchemy', 'Ethereum chain data via Alchemy')
     .addTag('Health', 'System health monitoring')
     .addTag('Root', 'Base API endpoints')
     .build();

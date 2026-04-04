@@ -11,7 +11,7 @@ import databaseConfig from './config/database.config';
 import redisConfig from './config/redis.config';
 import telegramConfig from './config/telegram.config';
 import aiConfig from './config/ai.config';
-import etherscanConfig from './config/etherscan.config';
+import alchemyConfig from './config/alchemy.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -21,7 +21,7 @@ import { HealthModule } from './core/health/health.module';
 // Integration modules
 import { TelegramModule } from './integrations/telegram/telegram.module';
 import { AiModule } from './integrations/ai/ai.module';
-import { EtherscanModule } from './integrations/etherscan/etherscan.module';
+import { AlchemyModule } from './integrations/alchemy/alchemy.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -37,7 +37,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, etherscanConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -82,7 +82,7 @@ import { AppService } from './app.service';
     HealthModule,
     TelegramModule,
     AiModule,
-    EtherscanModule,
+    AlchemyModule,
     AuthModule,
     EventsModule,
   ],

@@ -60,10 +60,10 @@ model MagicLink {
 }
 
 // ---------------------------------------------------------------------------
-// Etherscan cache
+// Alchemy cache
 // ---------------------------------------------------------------------------
 
-model EtherscanCache {
+model AlchemyCache {
   id          String   @id @default(cuid())
   requestType String
   parameters  String
