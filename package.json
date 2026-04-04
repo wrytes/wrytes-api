@@ -28,7 +28,8 @@
 		"db:migrate": "prisma migrate dev",
 		"db:migrate:deploy": "prisma migrate deploy",
 		"db:studio": "prisma studio",
-		"db:reset": "prisma migrate reset"
+		"db:reset": "prisma migrate reset",
+		"db:grant-admin": "ts-node --skip-project --compiler-options '{\"module\":\"commonjs\",\"moduleResolution\":\"node\",\"esModuleInterop\":true}' --transpile-only prisma/scripts/grant-admin.ts"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.39.0",
