@@ -16,6 +16,9 @@ export const validationSchema = Joi.object({
 	REDIS_PORT: Joi.number().default(6379),
 	REDIS_PASSWORD: Joi.string().allow('').optional(),
 
+	// AI
+	ANTHROPIC_API_KEY: Joi.string().allow('').optional(),
+
 	// Telegram
 	TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),
 	TELEGRAM_WEBHOOK_DOMAIN: Joi.string().allow('').optional(),

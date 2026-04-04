@@ -12,9 +12,10 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model User {
-  id             String  @id @default(cuid())
-  telegramId     BigInt  @unique
+  id             String   @id @default(cuid())
+  telegramId     BigInt   @unique
   telegramHandle String?
+  notificationsEnabled Boolean @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

@@ -2,12 +2,14 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 // Config
 import appConfig from './config/app.config';
 import databaseConfig from './config/database.config';
 import redisConfig from './config/redis.config';
 import telegramConfig from './config/telegram.config';
+import aiConfig from './config/ai.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -16,9 +18,13 @@ import { HealthModule } from './core/health/health.module';
 
 // Integration modules
 import { TelegramModule } from './integrations/telegram/telegram.module';
+import { AiModule } from './integrations/ai/ai.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
+
+// Common modules
+import { EventsModule } from './common/events/events.module';
 
 // App
 import { AppController } from './app.controller';
@@ -28,7 +34,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -60,10 +66,19 @@ import { AppService } from './app.service';
       },
     ]),
 
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      maxListeners: 10,
+      verboseMemoryLeak: true,
+    }),
+
     DatabaseModule,
     HealthModule,
     TelegramModule,
+    AiModule,
     AuthModule,
+    EventsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
