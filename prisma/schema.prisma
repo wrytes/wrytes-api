@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+model User {
+  id             String  @id @default(cuid())
+  telegramId     BigInt  @unique
+  telegramHandle String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  apiKeys    ApiKey[]
+  magicLinks MagicLink[]
+}
+
+// ---------------------------------------------------------------------------
+// Auth / API Keys
+// ---------------------------------------------------------------------------
+
+enum Scope {
+  READ
+  WRITE
+  ADMIN
+}
+
+model ApiKey {
+  id         String   @id @default(cuid())
+  userId     String
+  keyId      String   @unique
+  secretHash String
+  scopes     Scope[]  @default([READ])
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MagicLink {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  scopes    Scope[]   @default([READ])
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
