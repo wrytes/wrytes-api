@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Config
 import appConfig from './config/app.config';
@@ -10,6 +11,7 @@ import databaseConfig from './config/database.config';
 import redisConfig from './config/redis.config';
 import telegramConfig from './config/telegram.config';
 import aiConfig from './config/ai.config';
+import etherscanConfig from './config/etherscan.config';
 import { validationSchema } from './config/validation.schema';
 
 // Core modules
@@ -19,6 +21,7 @@ import { HealthModule } from './core/health/health.module';
 // Integration modules
 import { TelegramModule } from './integrations/telegram/telegram.module';
 import { AiModule } from './integrations/ai/ai.module';
+import { EtherscanModule } from './integrations/etherscan/etherscan.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -34,7 +37,7 @@ import { AppService } from './app.service';
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig],
+      load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, etherscanConfig],
       validationSchema,
       validationOptions: {
         allowUnknown: true,
@@ -66,6 +69,8 @@ import { AppService } from './app.service';
       },
     ]),
 
+    ScheduleModule.forRoot(),
+
     EventEmitterModule.forRoot({
       wildcard: false,
       delimiter: '.',
@@ -77,6 +82,7 @@ import { AppService } from './app.service';
     HealthModule,
     TelegramModule,
     AiModule,
+    EtherscanModule,
     AuthModule,
     EventsModule,
   ],

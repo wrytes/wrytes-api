@@ -58,3 +58,19 @@ model MagicLink {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// ---------------------------------------------------------------------------
+// Etherscan cache
+// ---------------------------------------------------------------------------
+
+model EtherscanCache {
+  id          String   @id @default(cuid())
+  requestType String
+  parameters  String
+  response    Json
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@unique([requestType, parameters])
+  @@index([expiresAt])
+}

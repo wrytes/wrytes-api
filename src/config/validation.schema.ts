@@ -24,6 +24,10 @@ export const validationSchema = Joi.object({
 	TELEGRAM_WEBHOOK_DOMAIN: Joi.string().allow('').optional(),
 	TELEGRAM_WEBHOOK_PATH: Joi.string().allow('').default('').optional(),
 
+	// Etherscan
+	ETHERSCAN_API_KEY: Joi.string().allow('').optional(),
+	ETHERSCAN_BASE_URL: Joi.string().allow('').optional(),
+
 	// Logging
 	LOG_LEVEL: Joi.string()
 		.valid('fatal', 'error', 'warn', 'info', 'debug', 'trace')
