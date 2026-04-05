@@ -190,6 +190,7 @@ model OffRampRoute {
 
 enum OffRampExecutionStatus {
   DETECTED
+  CONVERTING
   TRANSFERRING
   DEPOSITED
   SELLING
@@ -208,6 +209,9 @@ model OffRampExecution {
   tokenSymbol        String
   tokenAmount        Decimal                @db.Decimal(36, 18)
   depositTxHash      String?                @unique
+  conversionTxHash   String?
+  krakenTokenSymbol  String?
+  krakenTokenAmount  Decimal?               @db.Decimal(36, 18)
   onChainTxHash      String?
   krakenDepositRef   String?
   krakenOrderId      String?

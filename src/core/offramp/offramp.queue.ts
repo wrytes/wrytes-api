@@ -14,18 +14,21 @@ export interface OffRampJobData {
 export const KRAKEN_DEPOSIT_ASSET: Record<string, string> = {
   USDT: 'USDT',
   USDC: 'USDC',
+  ETH: 'ETH',
 };
 
 /** Map from token symbol → preferred Kraken deposit method substring (case-insensitive match) */
 export const KRAKEN_DEPOSIT_METHOD_HINT: Record<string, string> = {
   USDT: 'Ethereum',
   USDC: 'Ethereum',
+  ETH: 'Ethereum',
 };
 
 /** Map from (tokenSymbol, FiatCurrency) → Kraken trading pair */
 export const KRAKEN_TRADING_PAIRS: Record<string, Partial<Record<FiatCurrency, string>>> = {
   USDT: { CHF: 'USDTCHF', EUR: 'USDTEUR' },
   USDC: { CHF: 'USDCCHF', EUR: 'USDCEUR' },
+  ETH: { CHF: 'XETHZCHF', EUR: 'XETHZEUR' },
 };
 
 /** Map from FiatCurrency → Kraken asset name for fiat withdrawals */

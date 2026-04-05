@@ -3,16 +3,19 @@ import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Job, Queue } from 'bullmq';
-import { parseUnits, getAddress } from 'viem';
+import { parseUnits, formatUnits, getAddress } from 'viem';
 import type { Address } from 'viem';
 import { FiatCurrency } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { SafeService } from '../../integrations/safe/safe.service';
+import { WalletViemService } from '../../integrations/wallet/wallet.viem.service';
+import { OneInchService } from '../../integrations/oneinch/oneinch.service';
 import { KrakenDeposit } from '../../integrations/kraken/kraken.deposit';
 import { KrakenOrders } from '../../integrations/kraken/kraken.orders';
 import { KrakenWithdraw } from '../../integrations/kraken/kraken.withdraw';
 import { NotificationEvent, AdminNotificationEvent } from '../../common/events/notification.events';
 import { ENABLED_TOKENS } from '../../config/tokens.config';
+import { ConversionStrategyRegistry } from './strategies/conversion-strategy.registry';
 import {
   OFFRAMP_QUEUE,
   OffRampJobData,
@@ -36,6 +39,9 @@ export class OffRampProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly safe: SafeService,
+    private readonly viem: WalletViemService,
+    private readonly oneinch: OneInchService,
+    private readonly registry: ConversionStrategyRegistry,
     private readonly krakenDeposit: KrakenDeposit,
     private readonly krakenOrders: KrakenOrders,
     private readonly krakenWithdraw: KrakenWithdraw,
@@ -62,7 +68,7 @@ export class OffRampProcessor extends WorkerHost {
     try {
       switch (execution.status) {
         case 'DETECTED':
-          await this.handleTransfer(execution);
+          await this.handleDetected(execution);
           break;
         case 'TRANSFERRING':
           await this.handleWaitDeposit(execution, job.attemptsMade);
@@ -92,20 +98,94 @@ export class OffRampProcessor extends WorkerHost {
   }
 
   // ---------------------------------------------------------------------------
-  // Step 1 DETECTED → TRANSFERRING
-  // Encode & execute Safe → Kraken ERC-20 transfer
+  // Step 1a DETECTED — route to conversion or direct transfer
+  // ---------------------------------------------------------------------------
+  private async handleDetected(execution: any) {
+    const strategy = this.registry.get(execution.tokenSymbol);
+    if (strategy) {
+      await this.handleConvert(execution, strategy);
+    } else {
+      await this.handleTransfer(execution);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 1b DETECTED → CONVERTING → (ready for TRANSFERRING)
+  // Run a pre-deposit conversion strategy (unwrap, swap, redeem, …)
+  // ---------------------------------------------------------------------------
+  private async handleConvert(execution: any, strategy: any) {
+    const { route } = execution;
+    const { safeWallet } = route;
+    const chainId = safeWallet.chainId;
+
+    const tokenConfig = ENABLED_TOKENS.find((t) => t.symbol === execution.tokenSymbol);
+    if (!tokenConfig) throw new Error(`Token ${execution.tokenSymbol} not found in config`);
+
+    console.log('[handleConvert] tokenAmount raw:', execution.tokenAmount, typeof execution.tokenAmount);
+    console.log('[handleConvert] tokenAmount.toString():', execution.tokenAmount.toString());
+    console.log('[handleConvert] tokenConfig.decimals:', tokenConfig.decimals);
+    const amount = parseUnits(execution.tokenAmount.toString(), tokenConfig.decimals);
+    console.log('[handleConvert] parsed amount:', amount.toString());
+
+    this.logger.log(`Converting ${execution.tokenAmount} ${execution.tokenSymbol} via strategy (safe: ${safeWallet.address})`);
+
+    await this.prisma.offRampExecution.update({
+      where: { id: execution.id },
+      data: { status: 'CONVERTING' },
+    });
+
+    await this.safe.ensureDeployed(execution.userId, chainId, safeWallet.label);
+
+    const result = await strategy.execute(
+      { safe: this.safe, oneinch: this.oneinch, viem: this.viem },
+      safeWallet.id,
+      getAddress(safeWallet.address) as Address,
+      chainId,
+      amount,
+    );
+
+    const outputDecimals = result.tokenSymbol === 'ETH'
+      ? 18
+      : (ENABLED_TOKENS.find((t) => t.symbol === result.tokenSymbol)?.decimals ?? 18);
+
+    await this.prisma.offRampExecution.update({
+      where: { id: execution.id },
+      data: {
+        conversionTxHash: result.txHash,
+        krakenTokenSymbol: result.tokenSymbol,
+        krakenTokenAmount: formatUnits(result.amount, outputDecimals),
+      },
+    });
+
+    this.logger.log(`Conversion complete: ${execution.tokenSymbol} → ${result.tokenSymbol} (${formatUnits(result.amount, outputDecimals)}) tx: ${result.txHash}`);
+
+    // Re-fetch with updated krakenToken fields then proceed to transfer
+    const updated = await this.prisma.offRampExecution.findUnique({
+      where: { id: execution.id },
+      include: { route: { include: { safeWallet: true, bankAccount: true } } },
+    });
+
+    await this.handleTransfer(updated);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Step 2 DETECTED/CONVERTING → TRANSFERRING
+  // Execute Safe → Kraken transfer (ERC-20 or native ETH)
   // ---------------------------------------------------------------------------
   private async handleTransfer(execution: any) {
-    const { route, tokenSymbol, tokenAmount } = execution;
+    const { route } = execution;
     const { safeWallet } = route;
 
-    const krakenAsset = KRAKEN_DEPOSIT_ASSET[tokenSymbol];
+    // Use post-conversion token if available, otherwise the originally received token
+    const krakenSymbol: string = execution.krakenTokenSymbol ?? execution.tokenSymbol;
+    const krakenAmount: string = execution.krakenTokenAmount?.toString() ?? execution.tokenAmount.toString();
+
+    const krakenAsset = KRAKEN_DEPOSIT_ASSET[krakenSymbol];
     if (!krakenAsset) {
-      throw new Error(`Token ${tokenSymbol} is not supported for direct Kraken deposit. Manual swap required.`);
+      throw new Error(`Token ${krakenSymbol} has no Kraken deposit mapping. Add a conversion strategy or update KRAKEN_DEPOSIT_ASSET.`);
     }
 
-    // Find the deposit method (ERC20) and get deposit address
-    const methodHint = KRAKEN_DEPOSIT_METHOD_HINT[tokenSymbol];
+    const methodHint = KRAKEN_DEPOSIT_METHOD_HINT[krakenSymbol];
     const methodsRes = await this.krakenDeposit.getMethods(OPERATOR, { asset: krakenAsset });
     if (methodsRes.error?.length) throw new Error(`Kraken deposit methods error: ${methodsRes.error.join(', ')}`);
 
@@ -114,7 +194,7 @@ export class OffRampProcessor extends WorkerHost {
     const method = methodsRes.result.find((m) =>
       m.method.toUpperCase().includes(methodHint.toUpperCase()),
     );
-    if (!method) throw new Error(`No ERC20 deposit method found for ${krakenAsset}. Available: ${methodsRes.result.map((m) => m.method).join(', ')}`);
+    if (!method) throw new Error(`No deposit method found for ${krakenAsset}. Available: ${methodsRes.result.map((m) => m.method).join(', ')}`);
 
     const addrRes = await this.krakenDeposit.getAddresses(OPERATOR, {
       asset: krakenAsset,
@@ -125,35 +205,42 @@ export class OffRampProcessor extends WorkerHost {
     const depositAddress = addrRes.result[0]?.address;
     if (!depositAddress) throw new Error('No Kraken deposit address available');
 
-    // Resolve token contract address
-    const tokenConfig = ENABLED_TOKENS.find((t) => t.symbol === tokenSymbol);
-    if (!tokenConfig?.addresses[1]) throw new Error(`Token ${tokenSymbol} not found in config`);
+    this.logger.log(`Transferring ${krakenAmount} ${krakenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`);
 
-    const tokenAddress = getAddress(tokenConfig.addresses[1]) as Address;
-    const amount = parseUnits(tokenAmount.toString(), tokenConfig.decimals);
+    // ensureDeployed is a no-op when already deployed; skipped when conversion already ran it
+    await this.safe.ensureDeployed(execution.userId, safeWallet.chainId, safeWallet.label);
 
-    this.logger.log(`Transferring ${tokenAmount} ${tokenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`);
-
-    this.notifyUser(execution.userId, 'Crypto received', `${tokenAmount} ${tokenSymbol} received — transferring to exchange.`);
+    this.notifyUser(execution.userId, 'Crypto received', `${execution.tokenAmount} ${execution.tokenSymbol} received — transferring to exchange.`);
 
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
       data: { status: 'TRANSFERRING' },
     });
 
-    const txHash = await this.safe.executeTransfer(
-      safeWallet.id,
-      tokenAddress,
-      getAddress(depositAddress) as Address,
-      amount,
-    );
+    let txHash: `0x${string}`;
+
+    if (krakenSymbol === 'ETH') {
+      // Native ETH transfer from the Safe
+      const amount = parseUnits(krakenAmount, 18);
+      txHash = await this.safe.executeRaw(
+        safeWallet.id,
+        getAddress(depositAddress) as Address,
+        '0x',
+        amount,
+      );
+    } else {
+      const tokenConfig = ENABLED_TOKENS.find((t) => t.symbol === krakenSymbol);
+      if (!tokenConfig?.addresses[safeWallet.chainId]) throw new Error(`Token ${krakenSymbol} not found in config`);
+      const tokenAddress = getAddress(tokenConfig.addresses[safeWallet.chainId]!) as Address;
+      const amount = parseUnits(krakenAmount, tokenConfig.decimals);
+      txHash = await this.safe.executeTransfer(safeWallet.id, tokenAddress, getAddress(depositAddress) as Address, amount);
+    }
 
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
       data: { onChainTxHash: txHash },
     });
 
-    // Enqueue deposit polling
     await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
   }
 
@@ -166,7 +253,8 @@ export class OffRampProcessor extends WorkerHost {
       throw new Error('Kraken deposit not confirmed after maximum polling attempts (2h)');
     }
 
-    const krakenAsset = KRAKEN_DEPOSIT_ASSET[execution.tokenSymbol];
+    const krakenSymbol = execution.krakenTokenSymbol ?? execution.tokenSymbol;
+    const krakenAsset = KRAKEN_DEPOSIT_ASSET[krakenSymbol];
     const statusRes = await this.krakenDeposit.getStatus(OPERATOR, { asset: krakenAsset });
     if (statusRes.error?.length) throw new Error(`Kraken deposit status error: ${statusRes.error.join(', ')}`);
 
@@ -194,22 +282,24 @@ export class OffRampProcessor extends WorkerHost {
   // Place market sell order and wait for fill
   // ---------------------------------------------------------------------------
   private async handleSell(execution: any) {
-    const { route, tokenSymbol, tokenAmount } = execution;
-    const pair = krakenPairFor(tokenSymbol, route.targetCurrency);
-    if (!pair) throw new Error(`No Kraken trading pair for ${tokenSymbol}/${route.targetCurrency}`);
+    const { route } = execution;
+    const krakenSymbol = execution.krakenTokenSymbol ?? execution.tokenSymbol;
+    const krakenAmount = execution.krakenTokenAmount?.toString() ?? execution.tokenAmount.toString();
+    const pair = krakenPairFor(krakenSymbol, route.targetCurrency);
+    if (!pair) throw new Error(`No Kraken trading pair for ${krakenSymbol}/${route.targetCurrency}`);
 
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
       data: { status: 'SELLING' },
     });
 
-    this.logger.log(`Placing sell order — pair: ${pair}, volume: ${tokenAmount}`);
+    this.logger.log(`Placing sell order — pair: ${pair}, volume: ${krakenAmount}`);
 
     const filledOrder = await this.krakenOrders.placeAndWait(OPERATOR, {
       ordertype: 'market',
       type: 'sell',
       pair,
-      volume: tokenAmount.toString(),
+      volume: krakenAmount,
     });
 
     const fiatAmount = filledOrder.cost;
