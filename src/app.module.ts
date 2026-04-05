@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ScheduleModule } from '@nestjs/schedule';
+import { BullModule } from '@nestjs/bullmq';
 
 // Config
 import appConfig from './config/app.config';
@@ -34,7 +35,13 @@ import { WalletModule } from './integrations/wallet/wallet.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
-import { ExchangeCredentialsModule } from './modules/exchange-credentials/exchange-credentials.module';
+import { UserProfileModule } from './modules/user-profile/user-profile.module';
+import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
+import { OffRampRoutesModule } from './modules/offramp-routes/offramp-routes.module';
+import { OffRampExecutionsModule } from './modules/offramp-executions/offramp-executions.module';
+
+// Core modules
+import { OffRampCoreModule } from './core/offramp/offramp-core.module';
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
@@ -47,6 +54,18 @@ import { AppService } from './app.service';
 
 @Module({
   imports: [
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        connection: {
+          host: config.get<string>('REDIS_HOST', 'localhost'),
+          port: config.get<number>('REDIS_PORT', 6379),
+          password: config.get<string>('REDIS_PASSWORD') || undefined,
+        },
+      }),
+      inject: [ConfigService],
+    }),
+
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, databaseConfig, redisConfig, telegramConfig, aiConfig, alchemyConfig, oneinchConfig, krakenConfig, deribitConfig],
@@ -100,7 +119,11 @@ import { AppService } from './app.service';
     DeribitModule,
     SafeModule,
     AuthModule,
-    ExchangeCredentialsModule,
+    UserProfileModule,
+    BankAccountsModule,
+    OffRampRoutesModule,
+    OffRampExecutionsModule,
+    OffRampCoreModule,
     WalletModule,
     EventsModule,
   ],

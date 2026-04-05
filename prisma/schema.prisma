@@ -19,18 +19,43 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  apiKeys              ApiKey[]
-  magicLinks           MagicLink[]
-  scopes               UserScope[]
-  safeWallets          SafeWallet[]
-  exchangeCredentials  ExchangeCredential[]
+  apiKeys      ApiKey[]
+  magicLinks   MagicLink[]
+  scopes       UserScope[]
+  safeWallets  SafeWallet[]
+  profile      UserProfile?
+  bankAccounts BankAccount[]
+  offRampRoutes OffRampRoute[]
+}
+
+// ---------------------------------------------------------------------------
+// User profile (KYC / KYB)
+// ---------------------------------------------------------------------------
+
+model UserProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  firstName    String
+  lastName     String
+  businessName String?
+  dateOfBirth  DateTime?
+  street       String?
+  city         String?
+  postalCode   String?
+  country      String?   // ISO 3166-1 alpha-2, e.g. "CH"
+  isVerified   Boolean   @default(false)
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 // ---------------------------------------------------------------------------
 // Scopes / Permissions
 // ---------------------------------------------------------------------------
 
-/// Available scope keys: USER, ADMIN, AI, ALCHEMY, ...
+/// Available scope keys: USER, ADMIN, AI, ALCHEMY, KRAKEN, DERIBIT, SAFE, OFFRAMP
 /// No entry for a user = no permission (default false).
 model Scope {
   key         String  @id   // e.g. USER, ADMIN, AI, ALCHEMY
@@ -92,35 +117,110 @@ model SafeWallet {
   deployedAt DateTime?
   createdAt  DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offRampRoute OffRampRoute?
 
   @@unique([userId, chainId, label])
   @@index([userId])
 }
 
 // ---------------------------------------------------------------------------
-// Exchange credentials
+// Bank accounts
 // ---------------------------------------------------------------------------
 
-enum Exchange {
-  KRAKEN
-  DERIBIT
+enum FiatCurrency {
+  CHF
+  EUR
+  // USD
 }
 
-model ExchangeCredential {
-  id            String   @id @default(cuid())
-  userId        String
-  exchange      Exchange
-  label         String   @default("default")
-  encryptedData String   // AES-256-GCM: base64(iv).base64(authTag).base64(ciphertext)
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+model BankAccount {
+  id           String      @id @default(cuid())
+  userId       String
+  iban         String      // AES-256-GCM encrypted
+  bic          String
+  holderName   String
+  currency     FiatCurrency
+  label        String      @default("default")
+  isDefault    Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offRampRoutes OffRampRoute[]
 
-  @@unique([userId, exchange, label])
+  @@unique([userId, label])
   @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Off-ramp routes
+// ---------------------------------------------------------------------------
+
+enum OffRampRouteStatus {
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+model OffRampRoute {
+  id               String             @id @default(cuid())
+  userId           String
+  label            String
+  safeWalletId     String             @unique
+  targetCurrency   FiatCurrency
+  bankAccountId    String
+  minTriggerAmount Decimal            @default(0) @db.Decimal(36, 18)
+  status           OffRampRouteStatus @default(ACTIVE)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  safeWallet  SafeWallet  @relation(fields: [safeWalletId], references: [id])
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
+  executions  OffRampExecution[]
+
+  @@unique([userId, label])
+  @@index([userId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Off-ramp executions
+// ---------------------------------------------------------------------------
+
+enum OffRampExecutionStatus {
+  DETECTED
+  TRANSFERRING
+  DEPOSITED
+  SELLING
+  SOLD
+  WITHDRAWING
+  COMPLETED
+  FAILED
+}
+
+model OffRampExecution {
+  id                 String                 @id @default(cuid())
+  routeId            String
+  userId             String
+  status             OffRampExecutionStatus @default(DETECTED)
+  tokenSymbol        String
+  tokenAmount        Decimal                @db.Decimal(36, 18)
+  onChainTxHash      String?
+  krakenDepositRef   String?
+  krakenOrderId      String?
+  fiatAmount         Decimal?               @db.Decimal(18, 8)
+  krakenWithdrawalId String?
+  error              String?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  route OffRampRoute @relation(fields: [routeId], references: [id])
+
+  @@index([routeId])
+  @@index([userId])
+  @@index([status])
 }
 
 // ---------------------------------------------------------------------------

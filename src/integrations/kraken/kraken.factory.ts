@@ -1,13 +1,25 @@
 import { Injectable } from '@nestjs/common';
-import { ExchangeCredentialsService } from '../../modules/exchange-credentials/exchange-credentials.service';
+import { ConfigService } from '@nestjs/config';
 import { KrakenClient } from './kraken.client';
 
 @Injectable()
 export class KrakenClientFactory {
-  constructor(private readonly exchangeCredentials: ExchangeCredentialsService) {}
+  private readonly client: KrakenClient;
 
-  async forUser(userId: string): Promise<KrakenClient> {
-    const credentials = await this.exchangeCredentials.getKrakenCredentials(userId);
-    return new KrakenClient(credentials);
+  constructor(configService: ConfigService) {
+    this.client = new KrakenClient({
+      publicKey: configService.get<string>('kraken.api.publicKey')!,
+      privateKey: configService.get<string>('kraken.api.privateKey')!,
+      addressKey: configService.get<string>('kraken.api.addressKey'),
+    });
+  }
+
+  forOperator(): KrakenClient {
+    return this.client;
+  }
+
+  /** @deprecated use forOperator() — kept for call-site compatibility during migration */
+  forUser(_userId: string): Promise<KrakenClient> {
+    return Promise.resolve(this.client);
   }
 }

@@ -7,40 +7,34 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DeribitApiClient, GrantType, RequestQuery } from '@wrytes/deribit-api-client';
-import { ExchangeCredentialsService } from '../../modules/exchange-credentials/exchange-credentials.service';
 
 const WS_OPEN = 1; // WebSocket.OPEN
 
 @Injectable()
 export class DeribitClientService implements OnModuleDestroy {
   private readonly logger = new Logger(DeribitClientService.name);
-  private readonly clients = new Map<string, DeribitApiClient>();
+  private operatorClient: DeribitApiClient | null = null;
 
-  constructor(
-    private readonly configService: ConfigService,
-    private readonly exchangeCredentials: ExchangeCredentialsService,
-  ) {}
+  constructor(private readonly configService: ConfigService) {}
 
-  async getClientForUser(userId: string, timeoutMs = 8000): Promise<DeribitApiClient> {
-    if (this.clients.has(userId)) {
-      const client = this.clients.get(userId)!;
-      await this.waitForSocketOpen(client, timeoutMs);
-      return client;
+  async getClient(): Promise<DeribitApiClient> {
+    if (!this.operatorClient) {
+      this.operatorClient = new DeribitApiClient({
+        type: GrantType.client_credentials,
+        baseUrl: this.configService.get<string>('deribit.baseUrl')!,
+        clientId: this.configService.get<string>('deribit.clientId')!,
+        clientSecret: this.configService.get<string>('deribit.clientSecret')!,
+      });
+      this.logger.log('Deribit operator client created');
     }
 
-    const credentials = await this.exchangeCredentials.getDeribitCredentials(userId);
-    const client = new DeribitApiClient({
-      type: GrantType.client_credentials,
-      baseUrl: this.configService.get<string>('deribit.baseUrl')!,
-      clientId: credentials.clientId,
-      clientSecret: credentials.clientSecret,
-    });
+    await this.waitForSocketOpen(this.operatorClient, 8000);
+    return this.operatorClient;
+  }
 
-    this.clients.set(userId, client);
-    this.logger.log(`Deribit client created for user ${userId}`);
-
-    await this.waitForSocketOpen(client, timeoutMs);
-    return client;
+  /** @deprecated use getClient() — kept for call-site compatibility during migration */
+  getClientForUser(_userId: string): Promise<DeribitApiClient> {
+    return this.getClient();
   }
 
   /**
@@ -56,10 +50,6 @@ export class DeribitClientService implements OnModuleDestroy {
     return response.result;
   }
 
-  /**
-   * Poll the underlying WebSocket until it reaches OPEN state.
-   * Throws GatewayTimeoutException if it does not open within timeoutMs.
-   */
   private async waitForSocketOpen(client: DeribitApiClient, timeoutMs: number): Promise<void> {
     const deadline = Date.now() + timeoutMs;
 
@@ -73,10 +63,8 @@ export class DeribitClientService implements OnModuleDestroy {
   }
 
   onModuleDestroy() {
-    for (const client of this.clients.values()) {
-      client.close();
-    }
-    this.clients.clear();
-    this.logger.log('All Deribit clients closed');
+    this.operatorClient?.close();
+    this.operatorClient = null;
+    this.logger.log('Deribit operator client closed');
   }
 }

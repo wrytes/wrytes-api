@@ -8,7 +8,7 @@ export const validationSchema = Joi.object({
 	PORT: Joi.number().default(3031),
 	API_KEY_SECRET: Joi.string().min(32).required(),
 
-	// Encryption (for exchange credentials at rest)
+	// Encryption (for bank account IBANs and other sensitive data at rest)
 	ENCRYPTION_KEY: Joi.string().min(32).required(),
 
 	// Database
@@ -36,10 +36,13 @@ export const validationSchema = Joi.object({
 	// 1inch
 	ONEINCH_API_KEY: Joi.string().allow('').optional(),
 
-	// Kraken
+	// Kraken — Wrytes AG operator account
 	KRAKEN_PUBLIC_KEY: Joi.string().allow('').optional(),
 	KRAKEN_PRIVATE_KEY: Joi.string().allow('').optional(),
 	KRAKEN_ADDRESS_KEY: Joi.string().allow('').optional(),
+	// Withdrawal keys for Wrytes AG's registered bank accounts on Kraken
+	KRAKEN_CHF_WITHDRAW_KEY: Joi.string().allow('').optional(),
+	KRAKEN_EUR_WITHDRAW_KEY: Joi.string().allow('').optional(),
 
 	// Deribit
 	DERIBIT_CLIENT_ID: Joi.string().allow('').optional(),
@@ -55,4 +58,9 @@ export const validationSchema = Joi.object({
 	// Rate Limiting
 	THROTTLE_TTL: Joi.number().default(60),
 	THROTTLE_LIMIT: Joi.number().default(100),
+
+	// Off-ramp monitor
+	MONITOR_MODE: Joi.string().valid('polling', 'webhook').default('polling'),
+	MONITOR_POLL_INTERVAL_MS: Joi.number().default(60000),
+	ALCHEMY_WEBHOOK_SECRET: Joi.string().allow('').optional(),
 });

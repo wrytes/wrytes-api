@@ -7,10 +7,9 @@ import { KrakenMarket } from './kraken.market';
 import { KrakenOrders } from './kraken.orders';
 import { KrakenController } from './kraken.controller';
 import { WalletModule } from '../../integrations/wallet/wallet.module';
-import { ExchangeCredentialsModule } from '../../modules/exchange-credentials/exchange-credentials.module';
 
 @Module({
-  imports: [WalletModule, ExchangeCredentialsModule],
+  imports: [WalletModule],
   providers: [KrakenClientFactory, KrakenBalance, KrakenWithdraw, KrakenDeposit, KrakenMarket, KrakenOrders],
   exports: [KrakenClientFactory, KrakenBalance, KrakenWithdraw, KrakenDeposit, KrakenMarket, KrakenOrders],
   controllers: [KrakenController],

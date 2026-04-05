@@ -1,82 +1,33 @@
 # Exchange Credentials
 
-Manages encrypted API credentials for Kraken and Deribit on a per-user basis.
+> **Note:** Wrytes API operates as a **Finance as a Service** platform. Exchange accounts (Kraken, Deribit) are owned and operated by Wrytes AG. Members do not connect their own exchange credentials.
+>
+> The exchange credential module has been removed from the member-facing API. Exchange API keys are configured at the operator level via environment variables.
 
-**Required scope:** `USER`
+## Operator Configuration
 
-Credentials are encrypted with AES-256-GCM before storage. The encryption key is set via `ENCRYPTION_KEY` in `.env`. Plaintext credentials are never persisted.
+Exchange credentials for Wrytes AG's accounts are set via environment variables:
 
-**Encryption format:** `base64(iv).base64(authTag).base64(ciphertext)`
+### Kraken
 
-## Endpoints
-
-### List Configured Exchanges
-
-```
-GET /exchange-credentials
-X-API-Key: rw_prod_...
-```
-
-Returns active credential entries (no sensitive data):
-
-```json
-[
-  {
-    "id": "clx...",
-    "exchange": "KRAKEN",
-    "label": "default",
-    "createdAt": "2024-01-01T00:00:00.000Z",
-    "updatedAt": "2024-01-01T00:00:00.000Z"
-  }
-]
+```env
+KRAKEN_PUBLIC_KEY=
+KRAKEN_PRIVATE_KEY=
+KRAKEN_ADDRESS_KEY=
+KRAKEN_CHF_WITHDRAW_KEY=   # key name for Wrytes AG's CHF bank account on Kraken
+KRAKEN_EUR_WITHDRAW_KEY=   # key name for Wrytes AG's EUR bank account on Kraken
 ```
 
----
+### Deribit
 
-### Save Kraken Credentials
-
-```
-POST /exchange-credentials/kraken
-X-API-Key: rw_prod_...
-Content-Type: application/json
-
-{
-  "publicKey": "...",
-  "privateKey": "...",
-  "addressKey": "...",   // optional
-  "label": "default"    // optional, defaults to "default"
-}
+```env
+DERIBIT_CLIENT_ID=
+DERIBIT_CLIENT_SECRET=
+DERIBIT_BASE_URL=           # wss://www.deribit.com/ws/api/v2
 ```
 
-Creates or replaces credentials for the given `label`. Upserts on `(userId, exchange, label)`.
+## Access Control
 
----
+The `KRAKEN` and `DERIBIT` scopes still exist and are enforced on their respective endpoints. Only operator/admin accounts hold these scopes. Regular members do not have access to raw exchange endpoints.
 
-### Save Deribit Credentials
-
-```
-POST /exchange-credentials/deribit
-X-API-Key: rw_prod_...
-Content-Type: application/json
-
-{
-  "clientId": "...",
-  "clientSecret": "...",
-  "label": "default"    // optional, defaults to "default"
-}
-```
-
----
-
-### Delete Credentials
-
-```
-DELETE /exchange-credentials/:exchange/:label
-X-API-Key: rw_prod_...
-```
-
-`:exchange` is `kraken` or `deribit`. `:label` identifies which credential set to delete.
-
-## Labels
-
-Labels allow multiple credential sets per exchange per user (e.g. `"main"`, `"trading"`, `"readonly"`). Most users will only have a single `"default"` label per exchange.
+See [scopes.md](./scopes.md) for the full scope reference.
