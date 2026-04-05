@@ -61,7 +61,7 @@ export class OneInchService {
       srcToken: src,
       dstToken: dst,
       srcAmount,
-      dstAmount: BigInt(raw.toAmount),
+      dstAmount: BigInt(raw.dstAmount),
       gas: BigInt(raw.gas ?? 200_000),
       protocols: this.parseProtocols(raw.protocols),
     };
@@ -95,14 +95,14 @@ export class OneInchService {
       srcToken: src,
       dstToken: dst,
       srcAmount,
-      dstAmount: BigInt(raw.toAmount),
+      dstAmount: BigInt(raw.dstAmount),
       tx: {
         from: raw.tx.from as Address,
         to: raw.tx.to as Address,
         data: raw.tx.data as `0x${string}`,
         value: BigInt(raw.tx.value),
         gas: BigInt(raw.tx.gas),
-        gasPrice: BigInt(raw.tx.gasPrice),
+        gasPrice: raw.tx.gasPrice != null ? BigInt(raw.tx.gasPrice) : null,
       },
     };
   }
@@ -136,7 +136,7 @@ export class OneInchService {
       to: raw.to as Address,
       data: raw.data as `0x${string}`,
       value: BigInt(raw.value),
-      gasPrice: BigInt(raw.gasPrice),
+      gasPrice: raw.gasPrice != null ? BigInt(raw.gasPrice) : null,
     };
   }
 
@@ -164,6 +164,7 @@ export class OneInchService {
     }
 
     const text = await res.text();
+    console.log(`[1inch] ${path} (${res.status}):`, text.trim());
 
     if (!res.ok) {
       this.logger.error(`1inch ${path} (${res.status}): ${text.trim()}`);

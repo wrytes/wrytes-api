@@ -38,7 +38,7 @@ export interface OneInchSwapTx {
   data: `0x${string}`;
   value: bigint;
   gas: bigint;
-  gasPrice: bigint;
+  gasPrice: bigint | null;
 }
 
 export interface OneInchSwap {
@@ -66,7 +66,7 @@ export interface OneInchApproveTx {
   to: Address;
   data: `0x${string}`;
   value: bigint;
-  gasPrice: bigint;
+  gasPrice: bigint | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -74,20 +74,22 @@ export interface OneInchApproveTx {
 // ---------------------------------------------------------------------------
 
 export interface RawQuoteResponse {
-  toAmount: string;
+  dstAmount: string;
   gas?: number;
   protocols?: Array<Array<Array<{ name: string }>>>;
 }
 
 export interface RawSwapResponse {
-  toAmount: string;
+  dstAmount: string;
   tx: {
     from: string;
     to: string;
     data: string;
     value: string;
     gas: number;
-    gasPrice: string;
+    gasPrice?: string;
+    maxFeePerGas?: string;
+    maxPriorityFeePerGas?: string;
   };
 }
 
@@ -99,5 +101,5 @@ export interface RawApproveTxResponse {
   to: string;
   data: string;
   value: string;
-  gasPrice: string;
+  gasPrice?: string;
 }
