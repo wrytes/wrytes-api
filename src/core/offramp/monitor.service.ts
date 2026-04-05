@@ -1,6 +1,14 @@
 import {
-  Injectable, Logger, OnModuleInit,
-  Controller, Post, Req, Headers, HttpCode, HttpStatus, UnauthorizedException,
+	Injectable,
+	Logger,
+	OnModuleInit,
+	Controller,
+	Post,
+	Req,
+	Headers,
+	HttpCode,
+	HttpStatus,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectQueue } from '@nestjs/bullmq';
@@ -19,116 +27,156 @@ const CHAIN_ID = 1;
 
 @Injectable()
 export class MonitorService implements OnModuleInit {
-  private readonly logger = new Logger(MonitorService.name);
-  private pollTimer: NodeJS.Timeout | null = null;
+	private readonly logger = new Logger(MonitorService.name);
+	private pollTimer: NodeJS.Timeout | null = null;
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly prisma: PrismaService,
-    private readonly alchemy: AlchemyService,
-    private readonly routes: OffRampRoutesService,
-    private readonly executions: OffRampExecutionsService,
-    @InjectQueue(OFFRAMP_QUEUE) private readonly queue: Queue<OffRampJobData>,
-  ) {}
+	constructor(
+		private readonly config: ConfigService,
+		private readonly prisma: PrismaService,
+		private readonly alchemy: AlchemyService,
+		private readonly routes: OffRampRoutesService,
+		private readonly executions: OffRampExecutionsService,
+		@InjectQueue(OFFRAMP_QUEUE)
+		private readonly queue: Queue<OffRampJobData>,
+	) {}
 
-  onModuleInit() {
-    const mode = this.config.get<string>('MONITOR_MODE', 'polling');
-    if (mode === 'polling') {
-      const interval = this.config.get<number>('MONITOR_POLL_INTERVAL_MS', 60_000);
-      this.logger.log(`Monitor starting in polling mode (interval: ${interval}ms)`);
-      this.pollTimer = setInterval(() => this.poll(), interval);
-    } else {
-      this.logger.log('Monitor starting in webhook mode — waiting for Alchemy events');
-    }
-  }
+	onModuleInit() {
+		const mode = this.config.get<string>('MONITOR_MODE', 'polling');
+		if (mode === 'polling') {
+			const interval = this.config.get<number>(
+				'MONITOR_POLL_INTERVAL_MS',
+				60_000,
+			);
+			this.logger.log(
+				`Monitor starting in polling mode (interval: ${interval}ms)`,
+			);
+			this.pollTimer = setInterval(() => this.poll(), interval);
+		} else {
+			this.logger.log(
+				'Monitor starting in webhook mode — waiting for Alchemy events',
+			);
+		}
+	}
 
-  // ---------------------------------------------------------------------------
-  // Polling (dev / fallback)
-  // ---------------------------------------------------------------------------
+	// ---------------------------------------------------------------------------
+	// Polling (dev / fallback)
+	// ---------------------------------------------------------------------------
 
-  async poll() {
-    const active = await this.routes.listActiveSafeAddresses();
-    if (!active.length) return;
+	async poll() {
+		const active = await this.routes.listActiveSafeAddresses();
+		if (!active.length) return;
 
-    this.logger.debug(`Polling ${active.length} active Safe(s) for incoming transfers`);
+		console.log(active.length);
 
-    for (const { routeId, address, minTriggerAmount } of active) {
-      try {
-        await this.checkSafe(routeId, address, minTriggerAmount);
-      } catch (err) {
-        this.logger.error(`Poll error for Safe ${address}: ${err instanceof Error ? err.message : err}`);
-      }
-    }
-  }
+		this.logger.debug(
+			`Polling ${active.length} active Safe(s) for incoming transfers`,
+		);
 
-  private async checkSafe(routeId: string, safeAddress: string, minTriggerAmount: Decimal) {
-    const result = await this.alchemy.getTokenTransfersFresh(CHAIN, safeAddress, 'to', 25);
+		for (const { routeId, address, minTriggerAmount } of active) {
+			try {
+				await this.checkSafe(routeId, address, Decimal(0.2));
+			} catch (err) {
+				this.logger.error(
+					`Poll error for Safe ${address}: ${err instanceof Error ? err.message : err}`,
+				);
+			}
+		}
+	}
 
-    for (const transfer of result.transfers) {
-      if (!transfer.to || transfer.to.toLowerCase() !== safeAddress.toLowerCase()) continue;
-      if (!transfer.rawContract.address) continue;
+	private async checkSafe(
+		routeId: string,
+		safeAddress: string,
+		minTriggerAmount: Decimal,
+	) {
+		const result = await this.alchemy.getTokenTransfersFresh(
+			CHAIN,
+			safeAddress,
+			'to',
+			25,
+		);
 
-      const token = getTokenByAddress(transfer.rawContract.address as `0x${string}`, CHAIN_ID);
-      if (!token) continue;
+		console.log(result);
 
-      const amount = transfer.value ?? 0;
-      if (new Decimal(amount).lt(minTriggerAmount)) {
-        this.logger.debug(`Transfer ${transfer.hash}: amount ${amount} below threshold ${minTriggerAmount} — skipping`);
-        continue;
-      }
+		for (const transfer of result.transfers) {
+			if (
+				!transfer.to ||
+				transfer.to.toLowerCase() !== safeAddress.toLowerCase()
+			)
+				continue;
+			if (!transfer.rawContract.address) continue;
 
-      await this.processTransfer({
-        txHash: transfer.hash,
-        routeId,
-        tokenSymbol: token.symbol,
-        tokenAmount: amount.toString(),
-      });
-    }
-  }
+			const token = getTokenByAddress(
+				transfer.rawContract.address as `0x${string}`,
+				CHAIN_ID,
+			);
+			if (!token) continue;
 
-  // ---------------------------------------------------------------------------
-  // Shared processing (used by both polling and webhook)
-  // ---------------------------------------------------------------------------
+			const amount = transfer.value ?? 0;
+			if (new Decimal(amount).lt(minTriggerAmount)) {
+				this.logger.debug(
+					`Transfer ${transfer.hash}: amount ${amount} below threshold ${minTriggerAmount} — skipping`,
+				);
+				continue;
+			}
 
-  async processTransfer(params: {
-    txHash: string;
-    routeId: string;
-    tokenSymbol: string;
-    tokenAmount: string;
-  }) {
-    // De-duplication: skip if already processed
-    const existing = await this.executions.findByDepositTxHash(params.txHash);
-    if (existing) return;
+			await this.processTransfer({
+				txHash: transfer.hash,
+				routeId,
+				tokenSymbol: token.symbol,
+				tokenAmount: amount.toString(),
+			});
+		}
+	}
 
-    const route = await this.prisma.offRampRoute.findUnique({
-      where: { id: params.routeId },
-      select: { userId: true },
-    });
-    if (!route) return;
+	// ---------------------------------------------------------------------------
+	// Shared processing (used by both polling and webhook)
+	// ---------------------------------------------------------------------------
 
-    this.logger.log(
-      `New deposit detected — route: ${params.routeId}, token: ${params.tokenSymbol}, amount: ${params.tokenAmount}, tx: ${params.txHash}`,
-    );
+	async processTransfer(params: {
+		txHash: string;
+		routeId: string;
+		tokenSymbol: string;
+		tokenAmount: string;
+	}) {
+		// De-duplication: skip if already processed
+		const existing = await this.executions.findByDepositTxHash(
+			params.txHash,
+		);
+		if (existing) return;
 
-    const execution = await this.executions.create({
-      routeId: params.routeId,
-      userId: route.userId,
-      tokenSymbol: params.tokenSymbol,
-      tokenAmount: params.tokenAmount,
-      depositTxHash: params.txHash,
-    });
+		const route = await this.prisma.offRampRoute.findUnique({
+			where: { id: params.routeId },
+			select: { userId: true },
+		});
+		if (!route) return;
 
-    await this.queue.add(OFFRAMP_QUEUE, { executionId: execution.id }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });
+		this.logger.log(
+			`New deposit detected — route: ${params.routeId}, token: ${params.tokenSymbol}, amount: ${params.tokenAmount}, tx: ${params.txHash}`,
+		);
 
-    this.logger.log(`Execution ${execution.id} queued for processing`);
-  }
+		const execution = await this.executions.create({
+			routeId: params.routeId,
+			userId: route.userId,
+			tokenSymbol: params.tokenSymbol,
+			tokenAmount: params.tokenAmount,
+			depositTxHash: params.txHash,
+		});
 
-  onModuleDestroy() {
-    if (this.pollTimer) {
-      clearInterval(this.pollTimer);
-      this.pollTimer = null;
-    }
-  }
+		await this.queue.add(
+			OFFRAMP_QUEUE,
+			{ executionId: execution.id },
+			{ attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
+		);
+
+		this.logger.log(`Execution ${execution.id} queued for processing`);
+	}
+
+	onModuleDestroy() {
+		if (this.pollTimer) {
+			clearInterval(this.pollTimer);
+			this.pollTimer = null;
+		}
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -137,53 +185,59 @@ export class MonitorService implements OnModuleInit {
 
 @Controller('monitor')
 export class MonitorController {
-  private readonly logger = new Logger(MonitorController.name);
+	private readonly logger = new Logger(MonitorController.name);
 
-  constructor(
-    private readonly config: ConfigService,
-    private readonly monitor: MonitorService,
-    private readonly routes: OffRampRoutesService,
-    private readonly alchemy: AlchemyService,
-  ) {}
+	constructor(
+		private readonly config: ConfigService,
+		private readonly monitor: MonitorService,
+		private readonly routes: OffRampRoutesService,
+		private readonly alchemy: AlchemyService,
+	) {}
 
-  @Post('webhook')
-  @HttpCode(HttpStatus.OK)
-  async handleWebhook(
-    @Req() req: any,
-    @Headers('x-alchemy-signature') signature: string,
-  ) {
-    const webhookSecret = this.config.get<string>('ALCHEMY_WEBHOOK_SECRET');
-    if (!webhookSecret) throw new UnauthorizedException('Webhook secret not configured');
+	@Post('webhook')
+	@HttpCode(HttpStatus.OK)
+	async handleWebhook(
+		@Req() req: any,
+		@Headers('x-alchemy-signature') signature: string,
+	) {
+		const webhookSecret = this.config.get<string>('ALCHEMY_WEBHOOK_SECRET');
+		if (!webhookSecret)
+			throw new UnauthorizedException('Webhook secret not configured');
 
-    const rawBody = JSON.stringify(req.body);
-    const expected = createHmac('sha256', webhookSecret).update(rawBody).digest('hex');
-    if (signature !== expected) throw new UnauthorizedException('Invalid webhook signature');
+		const rawBody = JSON.stringify(req.body);
+		const expected = createHmac('sha256', webhookSecret)
+			.update(rawBody)
+			.digest('hex');
+		if (signature !== expected)
+			throw new UnauthorizedException('Invalid webhook signature');
 
-    const { event } = req.body;
-    if (!event?.activity?.length) return { ok: true };
+		const { event } = req.body;
+		if (!event?.activity?.length) return { ok: true };
 
-    const activeRoutes = await this.routes.listActiveSafeAddresses();
-    const safeAddressMap = new Map(activeRoutes.map((r) => [r.address.toLowerCase(), r]));
+		const activeRoutes = await this.routes.listActiveSafeAddresses();
+		const safeAddressMap = new Map(
+			activeRoutes.map((r) => [r.address.toLowerCase(), r]),
+		);
 
-    for (const activity of event.activity) {
-      if (activity.category !== 'erc20') continue;
-      const toAddress = activity.toAddress?.toLowerCase();
-      if (!toAddress) continue;
+		for (const activity of event.activity) {
+			if (activity.category !== 'erc20') continue;
+			const toAddress = activity.toAddress?.toLowerCase();
+			if (!toAddress) continue;
 
-      const route = safeAddressMap.get(toAddress);
-      if (!route) continue;
+			const route = safeAddressMap.get(toAddress);
+			if (!route) continue;
 
-      const token = activity.asset as string;
-      const amount = (activity.value ?? 0).toString();
+			const token = activity.asset as string;
+			const amount = (activity.value ?? 0).toString();
 
-      await this.monitor.processTransfer({
-        txHash: activity.hash,
-        routeId: route.routeId,
-        tokenSymbol: token,
-        tokenAmount: amount,
-      });
-    }
+			await this.monitor.processTransfer({
+				txHash: activity.hash,
+				routeId: route.routeId,
+				tokenSymbol: token,
+				tokenAmount: amount,
+			});
+		}
 
-    return { ok: true };
-  }
+		return { ok: true };
+	}
 }
