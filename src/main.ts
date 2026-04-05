@@ -69,6 +69,7 @@ async function bootstrap() {
     .addTag('Alchemy', 'Ethereum chain data via Alchemy — balances, transactions, and ERC-20 token transfers')
     .addTag('Wallet', 'Managed hot wallet — native and ERC-20 balances across supported chains')
     .addTag('Safe', 'Safe (Gnosis) multi-sig wallet management — predict and retrieve Safe addresses per user')
+    .addTag('Prices', 'Token price feeds — current and historical prices for tracked assets')
     .addTag('Kraken', 'Kraken CEX integration — balances, market data, orders, deposits, and withdrawals')
     .addTag('Deribit', 'Deribit CEX integration — account, market data, trading, and wallet operations')
     .addTag('Telegram', 'Telegram bot webhook receiver')

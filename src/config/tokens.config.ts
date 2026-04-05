@@ -48,6 +48,22 @@ export const ENABLED_TOKENS: EnabledToken[] = [
       1: '0xB58E61C3098d85632Df34EecfB899A1Ed80921cB',
     },
   },
+  {
+    symbol: 'cbBTC',
+    name: 'Coinbase Wrapped BTC',
+    decimals: 8,
+    addresses: {
+      1: '0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf',
+    },
+  },
+  {
+    symbol: 'EURC',
+    name: 'Euro Coin',
+    decimals: 6,
+    addresses: {
+      1: '0x1aBaEA1f7C830bD89Acc67eC4af516284b1bC33c',
+    },
+  },
 ];
 
 export function getTokenByAddress(address: Address, chainId: number): EnabledToken | undefined {

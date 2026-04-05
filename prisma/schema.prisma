@@ -230,6 +230,31 @@ model OffRampExecution {
 }
 
 // ---------------------------------------------------------------------------
+// Price rates and cache
+// ---------------------------------------------------------------------------
+
+/** Raw exchange rates fetched from each source. Stored for audit and cold-start restore. */
+model PriceRate {
+  from      String
+  to        String
+  source    String
+  value     Float
+  fetchedAt DateTime
+
+  @@id([from, to, source])
+  @@index([from])
+}
+
+/** Resolved per-symbol prices (latest). Written after each refresh cycle. */
+model PriceCache {
+  symbol    String   @id
+  usdPrice  Float?
+  chfPrice  Float?
+  eurPrice  Float?
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Alchemy cache
 // ---------------------------------------------------------------------------
 

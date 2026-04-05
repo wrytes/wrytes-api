@@ -101,6 +101,7 @@ export class OffRampProcessor extends WorkerHost {
   // Step 1a DETECTED — route to conversion or direct transfer
   // ---------------------------------------------------------------------------
   private async handleDetected(execution: any) {
+    this.notifyUser(execution.userId, 'Received', `${execution.tokenAmount} ${execution.tokenSymbol} received.`);
     const strategy = this.registry.get(execution.tokenSymbol);
     if (strategy) {
       await this.handleConvert(execution, strategy);
@@ -153,7 +154,9 @@ export class OffRampProcessor extends WorkerHost {
       },
     });
 
-    this.logger.log(`Conversion complete: ${execution.tokenSymbol} → ${result.tokenSymbol} (${formatUnits(result.amount, outputDecimals)}) tx: ${result.txHash}`);
+    const outputAmount = formatUnits(result.amount, outputDecimals);
+    this.logger.log(`Conversion complete: ${execution.tokenSymbol} → ${result.tokenSymbol} (${outputAmount}) tx: ${result.txHash}`);
+    this.notifyUser(execution.userId, 'Converted', `${execution.tokenAmount} ${execution.tokenSymbol} → ${outputAmount} ${result.tokenSymbol}`);
 
     // Re-fetch with updated krakenToken fields then proceed to transfer
     const updated = await this.prisma.offRampExecution.findUnique({
@@ -205,8 +208,6 @@ export class OffRampProcessor extends WorkerHost {
 
     // ensureDeployed is a no-op when already deployed; skipped when conversion already ran it
     await this.safe.ensureDeployed(execution.userId, safeWallet.chainId, safeWallet.label);
-
-    this.notifyUser(execution.userId, 'Crypto received', `${execution.tokenAmount} ${execution.tokenSymbol} received — transferring to exchange.`);
 
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },

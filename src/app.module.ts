@@ -32,6 +32,7 @@ import { KrakenModule } from './integrations/kraken/kraken.module';
 import { DeribitModule } from './integrations/deribit/deribit.module';
 import { SafeModule } from './integrations/safe/safe.module';
 import { WalletModule } from './integrations/wallet/wallet.module';
+import { PricesModule } from './integrations/prices/prices.module';
 
 // Feature modules
 import { AuthModule } from './modules/auth/auth.module';
@@ -125,6 +126,7 @@ import { AppService } from './app.service';
     OffRampExecutionsModule,
     OffRampCoreModule,
     WalletModule,
+    PricesModule,
     EventsModule,
   ],
   controllers: [AppController],
