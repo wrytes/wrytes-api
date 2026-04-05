@@ -1,14 +1,38 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { IsDateString, IsOptional, IsString } from 'class-validator';
 import { PrismaService } from '../../core/database/prisma.service';
 
 export class UpsertProfileDto {
+  @IsOptional()
+  @IsString()
   firstName?: string;
+
+  @IsOptional()
+  @IsString()
   lastName?: string;
+
+  @IsOptional()
+  @IsString()
   businessName?: string;
-  dateOfBirth?: Date;
+
+  @IsOptional()
+  @IsDateString()
+  dateOfBirth?: string;
+
+  @IsOptional()
+  @IsString()
   street?: string;
+
+  @IsOptional()
+  @IsString()
   city?: string;
+
+  @IsOptional()
+  @IsString()
   postalCode?: string;
+
+  @IsOptional()
+  @IsString()
   country?: string;
 }
 
@@ -17,9 +41,14 @@ export class UserProfileService {
   constructor(private readonly prisma: PrismaService) {}
 
   async upsert(userId: string, dto: UpsertProfileDto) {
+    const { dateOfBirth, ...rest } = dto;
     const data = Object.fromEntries(
-      Object.entries(dto).filter(([, v]) => v !== undefined),
-    ) as Partial<UpsertProfileDto>;
+      Object.entries(rest).filter(([, v]) => v !== undefined),
+    ) as Partial<Omit<UpsertProfileDto, 'dateOfBirth'>>;
+
+    if (dateOfBirth !== undefined) {
+      (data as any).dateOfBirth = new Date(dateOfBirth);
+    }
 
     return this.prisma.userProfile.upsert({
       where: { userId },

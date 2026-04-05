@@ -62,6 +62,10 @@ async function bootstrap() {
       'api-key',
     )
     .addTag('Authentication', 'API key management and verification')
+    .addTag('User Profile', 'KYC/KYB profile — create and manage personal or business identity details')
+    .addTag('Bank Accounts', 'SEPA bank accounts — add, update, and set a default for fiat payouts')
+    .addTag('Off-Ramp Routes', 'Off-ramp routes — configure crypto-to-fiat conversion pipelines with dedicated Safe deposit addresses')
+    .addTag('Off-Ramp Executions', 'Off-ramp execution history — track the lifecycle of each conversion from on-chain detection to fiat withdrawal')
     .addTag('Alchemy', 'Ethereum chain data via Alchemy — balances, transactions, and ERC-20 token transfers')
     .addTag('Wallet', 'Managed hot wallet — native and ERC-20 balances across supported chains')
     .addTag('Safe', 'Safe (Gnosis) multi-sig wallet management — predict and retrieve Safe addresses per user')
@@ -78,7 +82,7 @@ async function bootstrap() {
     customCss: '.swagger-ui .topbar { display: none }',
     swaggerOptions: {
       persistAuthorization: true,
-      docExpansion: 'list',
+      docExpansion: 'none',
       filter: true,
       showRequestDuration: true,
     },

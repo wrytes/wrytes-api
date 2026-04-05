@@ -1,21 +1,46 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
 import { FiatCurrency } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EncryptionService } from '../../common/encryption/encryption.service';
 
 export class CreateBankAccountDto {
+  @IsString()
   iban!: string;
+
+  @IsString()
   bic!: string;
+
+  @IsString()
   holderName!: string;
+
+  @IsEnum(FiatCurrency)
   currency!: FiatCurrency;
+
+  @IsOptional()
+  @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsBoolean()
   isDefault?: boolean;
 }
 
 export class UpdateBankAccountDto {
+  @IsOptional()
+  @IsString()
   bic?: string;
+
+  @IsOptional()
+  @IsString()
   holderName?: string;
+
+  @IsOptional()
+  @IsString()
   label?: string;
+
+  @IsOptional()
+  @IsBoolean()
   isDefault?: boolean;
 }
 
