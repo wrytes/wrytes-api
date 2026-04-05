@@ -252,6 +252,7 @@ export type DepositMethod = {
 	method: string;
 	limit: string | false;
 	fee: string | false;
+	minimum?: string;
 	'address-setup-fee'?: string;
 	'gen-address': boolean;
 };

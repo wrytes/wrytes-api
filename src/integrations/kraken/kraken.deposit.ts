@@ -33,6 +33,14 @@ export class KrakenDeposit {
     return res.json() as Promise<DepositAddressesResponse>;
   }
 
+  /** Returns the minimum deposit amount for the given asset + method hint, or null if not specified. */
+  async getMethodMinimum(userId: string, asset: string, methodHint: string): Promise<string | null> {
+    const res = await this.getMethods(userId, { asset });
+    if (res.error?.length) return null;
+    const method = res.result.find((m) => m.method.toUpperCase().includes(methodHint.toUpperCase()));
+    return method?.minimum ?? null;
+  }
+
   async getStatus(userId: string, data: DepositStatusRequest): Promise<DepositStatusResponse> {
     const client = await this.factory.forUser(userId);
     const res = await client.request({

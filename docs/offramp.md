@@ -93,6 +93,7 @@ Content-Type: application/json
 **Constraints:**
 - `label` must be unique per member.
 - `bankAccount.currency` must match `targetCurrency`.
+- `minTriggerAmount`, if provided, must be ≥ Kraken's minimum deposit for all directly-supported assets (USDC, USDT). The same check applies when updating via `PATCH /offramp/routes/:id`.
 
 ---
 

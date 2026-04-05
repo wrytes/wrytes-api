@@ -1,5 +1,5 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
-import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, Delete, Query, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { SafeService } from './safe.service';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
@@ -48,5 +48,18 @@ export class SafeController {
 			label: wallet.label,
 			deployed: wallet.deployed,
 		};
+	}
+
+	@Delete('wallet/:id')
+	@HttpCode(HttpStatus.OK)
+	@RequireScopes('ADMIN')
+	@ApiOperation({ summary: 'Delete a Safe wallet entry (admin only). Only undeployed wallets can be deleted unless force=true.' })
+	@ApiParam({ name: 'id', description: 'Safe wallet DB id' })
+	@ApiQuery({ name: 'force', required: false, type: Boolean, description: 'Delete even if deployed' })
+	@ApiResponse({ status: 400, description: 'Wallet is deployed — use force=true to override' })
+	@ApiResponse({ status: 404, description: 'Wallet not found' })
+	async deleteWallet(@Param('id') id: string, @Query('force') force?: string) {
+		await this.safeService.deleteWallet(id, force === 'true');
+		return { deleted: id };
 	}
 }

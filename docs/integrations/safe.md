@@ -63,6 +63,17 @@ X-API-Key: rw_prod_...
 
 Returns all Safe wallets for the authenticated user. Omit `chainId` to get all chains.
 
+---
+
+### Delete a Safe Wallet *(admin only)*
+
+```
+DELETE /safe/wallet/:id?force=true
+X-API-Key: rw_admin_...
+```
+
+Deletes the Safe wallet DB record. Only undeployed wallets can be deleted by default. Pass `?force=true` to delete a deployed wallet (the on-chain contract is unaffected — only the DB record is removed).
+
 ## Internal: Deployment
 
 Deployment is triggered internally via `SafeService.ensureDeployed()`. The operator wallet sends the factory deployment transaction and waits for receipt. `deployed` is set to `true` on confirmation.
