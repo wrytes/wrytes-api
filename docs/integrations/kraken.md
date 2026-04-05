@@ -2,21 +2,19 @@
 
 Spot exchange integration for balances, market data, orders, deposits, and withdrawals.
 
-**Required scope:** `KRAKEN`
+**Required scope:** `KRAKEN` (operator / admin only)
 
-## Credential Setup
+> This integration is used internally by Wrytes AG. Regular members do not hold the `KRAKEN` scope. All calls use Wrytes AG's operator account configured via environment variables.
 
-Kraken credentials are stored per-user, encrypted with AES-256-GCM. Store them via the [Exchange Credentials](../exchange-credentials.md) endpoints before using any Kraken endpoints.
+## Configuration
 
-```
-POST /exchange-credentials/kraken
-{
-  "publicKey": "...",
-  "privateKey": "...",
-  "addressKey": "...",   // optional, for withdrawal address verification
-  "label": "default"
-}
-```
+| Variable | Description |
+|---|---|
+| `KRAKEN_PUBLIC_KEY` | Kraken API public key |
+| `KRAKEN_PRIVATE_KEY` | Kraken API private key |
+| `KRAKEN_ADDRESS_KEY` | Kraken address key |
+| `KRAKEN_CHF_WITHDRAW_KEY` | Key name for Wrytes AG's registered CHF bank account on Kraken |
+| `KRAKEN_EUR_WITHDRAW_KEY` | Key name for Wrytes AG's registered EUR bank account on Kraken |
 
 ## Endpoints
 
@@ -33,7 +31,7 @@ Returns account balances for all assets.
 ### Market — Ticker
 
 ```
-GET /kraken/market/ticker?pair=USDT/CHF
+GET /kraken/market/ticker?pair=USDTCHF
 ```
 
 Full ticker info for a trading pair.
@@ -73,7 +71,7 @@ Details for a specific order by transaction ID.
 ### Deposits — Methods
 
 ```
-GET /kraken/deposit/methods?asset=XBT
+GET /kraken/deposit/methods?asset=USDT
 ```
 
 Available deposit methods for an asset.
@@ -83,7 +81,7 @@ Available deposit methods for an asset.
 ### Deposits — Addresses
 
 ```
-GET /kraken/deposit/addresses?asset=XBT&method=Bitcoin&new=false
+GET /kraken/deposit/addresses?asset=USDT&method=Tether+USD+%28ERC20%29&new=false
 ```
 
 Deposit addresses for an asset and method. Set `new=true` to generate a fresh address.
@@ -93,7 +91,7 @@ Deposit addresses for an asset and method. Set `new=true` to generate a fresh ad
 ### Deposits — Status
 
 ```
-GET /kraken/deposit/status?asset=XBT&limit=25
+GET /kraken/deposit/status?asset=USDT&limit=25
 ```
 
 Recent deposit history for an asset.
@@ -103,17 +101,26 @@ Recent deposit history for an asset.
 ### Withdrawals — Status
 
 ```
-GET /kraken/withdraw/status?asset=XBT&limit=25
+GET /kraken/withdraw/status?asset=CHF&limit=25
 ```
 
 Recent withdrawal history for an asset.
 
-## Configuration
+## Off-Ramp Usage
 
-Kraken credentials are managed per-user via the exchange credentials module. There are also optional global API keys in `.env` for server-level operations (if needed):
+The Kraken integration is used internally by the `OffRampProcessor` at each step:
 
-| Variable | Description |
+| Step | Kraken call |
 |---|---|
-| `KRAKEN_PUBLIC_KEY` | Global Kraken public API key |
-| `KRAKEN_PRIVATE_KEY` | Global Kraken private API key |
-| `KRAKEN_ADDRESS_KEY` | Global Kraken address key (withdrawal verification) |
+| DETECTED | `KrakenDeposit.getMethods` + `getAddresses` — get ERC-20 deposit address |
+| TRANSFERRING → DEPOSITED | `KrakenDeposit.getStatus` — poll until deposit confirmed |
+| DEPOSITED → SOLD | `KrakenOrders.placeAndWait` — market sell, wait for fill |
+| SOLD → WITHDRAWING | `KrakenWithdraw.withdraw` — initiate fiat withdrawal |
+| WITHDRAWING → COMPLETED | `KrakenWithdraw.withdrawStatus` — poll until confirmed |
+
+## Supported Trading Pairs
+
+| Token | CHF | EUR |
+|---|---|---|
+| USDT | `USDTCHF` | `USDTEUR` |
+| USDC | `USDCCHF` | `USDCEUR` |

@@ -35,19 +35,25 @@ Minimum required variables:
 | Variable | Description |
 |---|---|
 | `API_KEY_SECRET` | Secret for API key signing (≥ 32 chars) |
-| `ENCRYPTION_KEY` | AES-256-GCM key for exchange credentials (≥ 32 chars) |
+| `ENCRYPTION_KEY` | AES-256-GCM key for sensitive data at rest (≥ 32 chars) |
 | `DATABASE_URL` | Postgres connection string |
 | `REDIS_HOST` / `REDIS_PORT` / `REDIS_PASSWORD` | Redis connection |
 
-Optional (enables specific integrations):
+Optional (enables specific features):
 
-| Variable | Integration |
+| Variable | Feature |
 |---|---|
-| `ALCHEMY_API_KEY` | Alchemy (on-chain data) |
-| `WALLET_PRIVATE_KEY` | Managed hot wallet |
+| `ALCHEMY_API_KEY` | On-chain data + Safe monitoring |
+| `WALLET_PRIVATE_KEY` | Safe deployment and ERC-20 transfers |
+| `KRAKEN_*` | Kraken operator account |
+| `KRAKEN_CHF_WITHDRAW_KEY` | Fiat withdrawal to Wrytes AG CHF bank |
+| `KRAKEN_EUR_WITHDRAW_KEY` | Fiat withdrawal to Wrytes AG EUR bank |
 | `ONEINCH_API_KEY` | 1inch swaps |
-| `TELEGRAM_BOT_TOKEN` | Telegram bot |
+| `TELEGRAM_BOT_TOKEN` | Telegram notifications |
 | `ANTHROPIC_API_KEY` | AI features |
+| `MONITOR_MODE` | `polling` (dev) or `webhook` (prod), default `polling` |
+| `MONITOR_POLL_INTERVAL_MS` | Polling interval in ms, default `60000` |
+| `ALCHEMY_WEBHOOK_SECRET` | Required when `MONITOR_MODE=webhook` |
 
 See [`.env.example`](../.env.example) for the full list.
 
@@ -89,3 +95,15 @@ X-API-Key: rw_prod_<keyId>.<secret>
 ```
 
 See [authentication.md](./authentication.md) for the full auth flow.
+
+## 7. Onboard a member (operator steps)
+
+1. Create user and issue magic link (admin script or Telegram bot)
+2. Grant scopes: `USER`, `OFFRAMP`, `SAFE`
+3. Member fills in their profile (`PUT /member/profile`)
+4. Operator verifies profile (`POST /member/profile/:userId/verify`)
+5. Member adds a bank account (`POST /bank-accounts`)
+6. Member creates an off-ramp route (`POST /offramp/routes`) → receives a deposit address
+7. Member sends crypto to the deposit address — the system handles the rest
+
+See [offramp.md](./offramp.md) for the full off-ramp flow.

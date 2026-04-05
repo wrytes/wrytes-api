@@ -1,21 +1,32 @@
 # Safe Integration
 
-Gnosis Safe multi-sig wallet management. Supports deterministic address prediction and on-chain deployment.
+Gnosis Safe multi-sig wallet management. Supports deterministic address prediction, on-chain deployment, and ERC-20 transfers.
 
 **Required scope:** `SAFE`
 
 ## How It Works
 
-Each user gets a Safe wallet address predicted deterministically from:
+Each Safe address is predicted deterministically from:
 - The managed hot wallet address (as the single owner)
 - A salt nonce derived from `keccak256(userId:chainId:label)`
 
-The address is the same every time for the same user/chain/label combination, even before deployment.
+The address is stable before deployment — members can receive funds at a predicted address immediately.
 
 **Safe configuration:**
 - Version: 1.4.1
-- Owners: managed hot wallet (threshold: 1)
+- Owner: managed hot wallet (threshold: 1)
 - Uses L1 singleton for chainId 1 (Ethereum mainnet)
+
+## Labels
+
+Safe labels have two namespaces:
+
+| Namespace | Example | Purpose |
+|---|---|---|
+| General | `primary` | Member's own Safe wallets |
+| Off-ramp | `offramp:usdt-chf` | Automatically provisioned per off-ramp route |
+
+Off-ramp Safes are created by the `OffRampRoutesService` when a route is created. Members do not need to create them manually.
 
 ## Endpoints
 
@@ -23,9 +34,10 @@ The address is the same every time for the same user/chain/label combination, ev
 
 ```
 GET /safe/wallet?chainId=1&label=primary
+X-API-Key: rw_prod_...
 ```
 
-Returns the Safe wallet address for the authenticated user. If no record exists yet, the address is predicted and saved. `label` defaults to `"primary"`.
+Returns the Safe wallet for the authenticated user. If no record exists yet, the address is predicted and saved. `label` defaults to `"primary"`.
 
 **Response:**
 ```json
@@ -44,29 +56,26 @@ Returns the Safe wallet address for the authenticated user. If no record exists 
 
 ```
 GET /safe/wallets?chainId=1
+X-API-Key: rw_prod_...
 ```
 
-Returns all Safe wallets for the authenticated user. `chainId` is optional — omit to get wallets across all chains.
+Returns all Safe wallets for the authenticated user. Omit `chainId` to get all chains.
 
-**Response:**
-```json
-[
-  {
-    "address": "0xabcd...",
-    "chainId": 1,
-    "label": "primary",
-    "deployed": true,
-    "deployedAt": "2024-01-01T00:00:00.000Z"
-  }
-]
-```
+## Internal: Deployment
 
-## Deployment
+Deployment is triggered internally via `SafeService.ensureDeployed()`. The operator wallet sends the factory deployment transaction and waits for receipt. `deployed` is set to `true` on confirmation.
 
-Deployment is handled internally via `safe.service.ensureDeployed()`. The managed hot wallet sends the deployment transaction and waits for receipt. Once confirmed, `deployed` is set to `true` and `deployedAt` is recorded.
+## Internal: ERC-20 Transfer
 
-There is no public endpoint to trigger deployment — it is called internally as needed.
+The `SafeService.executeTransfer(safeWalletId, tokenAddress, toAddress, amount)` method is used by the off-ramp orchestrator to move tokens out of a Safe.
+
+It:
+1. Encodes an ERC-20 `transfer(to, amount)` call
+2. Creates a Safe transaction via protocol-kit
+3. Signs with the operator key (`WALLET_PRIVATE_KEY`)
+4. Executes on-chain and waits for receipt
+5. Returns the transaction hash
 
 ## Configuration
 
-Requires the managed wallet (`WALLET_PRIVATE_KEY` + `ALCHEMY_API_KEY`) to be configured, as it is used as the Safe owner and pays for deployment gas.
+Requires `WALLET_PRIVATE_KEY` (operator account, Safe owner + gas payer) and `ALCHEMY_API_KEY` (RPC provider).

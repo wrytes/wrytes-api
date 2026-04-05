@@ -2,24 +2,21 @@
 
 Derivatives exchange integration for account data, market data, trading, and wallet operations.
 
-**Required scope:** `DERIBIT`
+**Required scope:** `DERIBIT` (operator / admin only)
 
-## Credential Setup
+> This integration uses Wrytes AG's operator account configured via environment variables. Regular members do not hold the `DERIBIT` scope.
 
-Deribit credentials are stored per-user, encrypted with AES-256-GCM. Store them before using any Deribit endpoints:
+## Configuration
 
-```
-POST /exchange-credentials/deribit
-{
-  "clientId": "...",
-  "clientSecret": "...",
-  "label": "default"
-}
-```
+| Variable | Description |
+|---|---|
+| `DERIBIT_CLIENT_ID` | Deribit client ID |
+| `DERIBIT_CLIENT_SECRET` | Deribit client secret |
+| `DERIBIT_BASE_URL` | WebSocket URL (default: `wss://www.deribit.com/ws/api/v2`) |
 
 ## Connection
 
-Uses a WebSocket connection to the Deribit API (`wss://www.deribit.com/ws/api/v2` by default). Configurable via `DERIBIT_BASE_URL`.
+Uses a single persistent WebSocket connection to the Deribit API, lazily initialised on first use. The connection is closed cleanly on module shutdown.
 
 ## Endpoints
 
@@ -56,38 +53,15 @@ Transaction log. `start` and `end` are Unix timestamps in milliseconds.
 
 ```
 GET /deribit/market/currencies
-```
-All supported currencies.
-
-```
 GET /deribit/market/index-price?index=btc_usd
-```
-Current index price.
-
-```
 GET /deribit/market/instruments?currency=BTC&kind=future&expired=false
-```
-Available instruments. `kind`: `future`, `option`, `spot`, `future_combo`, `option_combo`.
-
-```
 GET /deribit/market/book-summary/currency?currency=BTC
-```
-Order book summary for all instruments in a currency.
-
-```
 GET /deribit/market/book-summary/instrument?instrument=BTC-PERPETUAL
-```
-Order book summary for a specific instrument.
-
-```
 GET /deribit/market/delivery-prices?index=btc_usd
-```
-Historical delivery prices.
-
-```
 GET /deribit/market/volatility?currency=BTC&start=1700000000000&end=1700086400000&resolution=3600
 ```
-Volatility index data. `resolution` is in seconds.
+
+`kind`: `future`, `option`, `spot`, `future_combo`, `option_combo`. `resolution` is in seconds.
 
 ---
 
@@ -95,18 +69,9 @@ Volatility index data. `resolution` is in seconds.
 
 ```
 GET /deribit/trading/orders/open?currency=BTC
-```
-Open orders for a currency.
-
-```
 GET /deribit/trading/orders/open/instrument?instrument=BTC-PERPETUAL
-```
-Open orders for a specific instrument.
-
-```
 GET /deribit/trading/orders/state?order_id=<id>
 ```
-State of a specific order.
 
 ```
 POST /deribit/trading/buy
@@ -119,15 +84,11 @@ POST /deribit/trading/sell
   "label": "my-order"
 }
 ```
-Place a buy or sell order.
 
 ```
 POST /deribit/trading/cancel
-{
-  "orderId": "<order_id>"
-}
+{ "orderId": "<order_id>" }
 ```
-Cancel an order.
 
 ---
 
@@ -135,28 +96,9 @@ Cancel an order.
 
 ```
 GET /deribit/wallet/deposits?currency=BTC&count=10&offset=0
-```
-Deposit history.
-
-```
 GET /deribit/wallet/withdrawals?currency=BTC&count=10&offset=0
-```
-Withdrawal history.
-
-```
 GET /deribit/wallet/deposit-address?currency=BTC
-```
-Current deposit address.
-
-```
-POST /deribit/wallet/deposit-address
-{
-  "currency": "BTC"
-}
-```
-Generate a new deposit address.
-
-```
+POST /deribit/wallet/deposit-address   { "currency": "BTC" }
 POST /deribit/wallet/withdraw
 {
   "currency": "BTC",
@@ -165,11 +107,3 @@ POST /deribit/wallet/withdraw
   "priority": "mid"
 }
 ```
-
-## Configuration
-
-| Variable | Description |
-|---|---|
-| `DERIBIT_BASE_URL` | WebSocket URL (default: `wss://www.deribit.com/ws/api/v2`) |
-
-Per-user credentials are managed via the exchange credentials module.
