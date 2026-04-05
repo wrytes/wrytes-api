@@ -13,10 +13,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
   private readonly logger = new Logger(AllExceptionsFilter.name);
 
   catch(exception: unknown, host: ArgumentsHost) {
-    const ctx = host.switchToHttp();
-    const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
-
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Internal server error';
     let error = 'Internal Server Error';
@@ -35,6 +31,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
       message = exception.message;
       error = exception.name;
     }
+
+    // Non-HTTP contexts (e.g. Telegraf bot handlers) don't have an HTTP response
+    if (host.getType() !== 'http') {
+      this.logger.error(
+        `${error} - ${status} - ${message}`,
+        exception instanceof Error ? exception.stack : undefined,
+      );
+      return;
+    }
+
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
 
     this.logger.error(
       `${request.method} ${request.url} - ${status} - ${message}`,

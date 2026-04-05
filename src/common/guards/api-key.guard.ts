@@ -26,6 +26,9 @@ export class ApiKeyGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
+    // Non-HTTP contexts (e.g. Telegraf bot handlers) bypass API key auth
+    if (context.getType() !== 'http') return true;
+
     const request = context.switchToHttp().getRequest();
     const apiKeyHeader = request.headers['x-api-key'];
 
