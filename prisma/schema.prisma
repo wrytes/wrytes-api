@@ -196,7 +196,8 @@ enum OffRampExecutionStatus {
   SELLING
   SOLD
   WITHDRAWING
-  COMPLETED
+  PENDING_BANK_TRANSFER
+  SETTLED
   FAILED
 }
 
@@ -212,6 +213,7 @@ model OffRampExecution {
   krakenOrderId      String?
   fiatAmount         Decimal?               @db.Decimal(18, 8)
   krakenWithdrawalId String?
+  bankTransferRef    String?
   error              String?
   createdAt          DateTime               @default(now())
   updatedAt          DateTime               @updatedAt

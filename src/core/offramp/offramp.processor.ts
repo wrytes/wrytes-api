@@ -11,7 +11,7 @@ import { SafeService } from '../../integrations/safe/safe.service';
 import { KrakenDeposit } from '../../integrations/kraken/kraken.deposit';
 import { KrakenOrders } from '../../integrations/kraken/kraken.orders';
 import { KrakenWithdraw } from '../../integrations/kraken/kraken.withdraw';
-import { NotificationEvent } from '../../common/events/notification.events';
+import { NotificationEvent, AdminNotificationEvent } from '../../common/events/notification.events';
 import { ENABLED_TOKENS } from '../../config/tokens.config';
 import {
   OFFRAMP_QUEUE,
@@ -86,7 +86,8 @@ export class OffRampProcessor extends WorkerHost {
         where: { id: executionId },
         data: { status: 'FAILED', error },
       });
-      this.notifyUser(execution.userId, '❌ Off-ramp failed', error);
+      this.notifyUser(execution.userId, 'Off-ramp failed', `Your off-ramp could not be completed: ${error}`, 'error');
+      this.notifyAdmin('Off-ramp execution failed', `Execution \`${executionId}\` failed at status \`${execution.status}\`\n\nError: ${error}`, 'error');
     }
   }
 
@@ -130,6 +131,8 @@ export class OffRampProcessor extends WorkerHost {
     const amount = parseUnits(tokenAmount.toString(), tokenConfig.decimals);
 
     this.logger.log(`Transferring ${tokenAmount} ${tokenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`);
+
+    this.notifyUser(execution.userId, 'Crypto received', `${tokenAmount} ${tokenSymbol} received — transferring to exchange.`);
 
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
@@ -179,6 +182,8 @@ export class OffRampProcessor extends WorkerHost {
       data: { status: 'DEPOSITED', krakenDepositRef: match.refid },
     });
 
+    this.notifyUser(execution.userId, 'Arrived at exchange', `${execution.tokenAmount} ${execution.tokenSymbol} confirmed on Kraken — swapping to fiat.`);
+
     await this.enqueueNext(execution.id, 0);
   }
 
@@ -215,6 +220,8 @@ export class OffRampProcessor extends WorkerHost {
         fiatAmount,
       },
     });
+
+    this.notifyUser(execution.userId, 'Swapped to fiat', `${execution.tokenAmount} ${execution.tokenSymbol} → ${fiatAmount} ${route.targetCurrency} — initiating bank withdrawal.`);
 
     await this.enqueueNext(execution.id, 0);
   }
@@ -279,18 +286,27 @@ export class OffRampProcessor extends WorkerHost {
       throw new Error('RETRY');
     }
 
+    const route = execution.route;
+    const bankAccount = route.bankAccount;
+
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
-      data: { status: 'COMPLETED' },
+      data: { status: 'PENDING_BANK_TRANSFER' },
     });
 
     this.notifyUser(
       execution.userId,
-      '✅ Off-ramp completed',
-      `${execution.tokenAmount} ${execution.tokenSymbol} → ${execution.fiatAmount} ${currency} sent to your bank account.`,
+      'Payment pending',
+      `${execution.fiatAmount} ${currency} received — your bank transfer is being prepared.`,
     );
 
-    this.logger.log(`Execution ${execution.id} COMPLETED`);
+    this.notifyAdmin(
+      'Payment pending review',
+      `Execution \`${execution.id}\`\nAmount: *${execution.fiatAmount} ${currency}*\nUser: \`${execution.userId}\`\nBank: ${bankAccount.label} — \`${bankAccount.iban}\`\n\nMark as settled: \`PATCH /offramp/executions/${execution.id}/settle\``,
+      'warning',
+    );
+
+    this.logger.log(`Execution ${execution.id} PENDING_BANK_TRANSFER — awaiting manual PostFinance transfer`);
   }
 
   // ---------------------------------------------------------------------------
@@ -304,10 +320,11 @@ export class OffRampProcessor extends WorkerHost {
     );
   }
 
-  private notifyUser(userId: string, title: string, message: string) {
-    this.eventEmitter.emit(
-      'notification.user',
-      new NotificationEvent(userId, title, message),
-    );
+  private notifyUser(userId: string, title: string, message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') {
+    this.eventEmitter.emit('notification', new NotificationEvent(userId, title, message, level));
+  }
+
+  private notifyAdmin(title: string, message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info') {
+    this.eventEmitter.emit('notification.admin', new AdminNotificationEvent(title, message, level));
   }
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { OffRampExecutionStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 
@@ -53,5 +53,33 @@ export class OffRampExecutionsService {
   // Internal: find by tx hash (de-duplication)
   async findByTxHash(txHash: string) {
     return this.prisma.offRampExecution.findFirst({ where: { onChainTxHash: txHash } });
+  }
+
+  // Admin: list all executions awaiting manual bank transfer
+  async listPendingBankTransfers() {
+    return this.prisma.offRampExecution.findMany({
+      where: { status: OffRampExecutionStatus.PENDING_BANK_TRANSFER },
+      include: {
+        route: {
+          include: {
+            bankAccount: true,
+          },
+        },
+      },
+      orderBy: { updatedAt: 'asc' },
+    });
+  }
+
+  // Admin: mark an execution as settled after manual bank transfer
+  async settle(id: string, bankTransferRef?: string) {
+    const execution = await this.prisma.offRampExecution.findUnique({ where: { id } });
+    if (!execution) throw new NotFoundException('Execution not found');
+    if (execution.status !== OffRampExecutionStatus.PENDING_BANK_TRANSFER) {
+      throw new BadRequestException(`Execution is not pending bank transfer (status: ${execution.status})`);
+    }
+    return this.prisma.offRampExecution.update({
+      where: { id },
+      data: { status: OffRampExecutionStatus.SETTLED, bankTransferRef },
+    });
   }
 }
