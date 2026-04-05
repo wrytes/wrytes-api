@@ -140,6 +140,52 @@ export class SafeService {
 	}
 
 	/**
+	 * Execute an arbitrary transaction from a Safe wallet.
+	 * The operator account (WALLET_PRIVATE_KEY) signs and executes the Safe transaction.
+	 * Returns the on-chain transaction hash.
+	 */
+	async executeRaw(
+		safeWalletId: string,
+		to: Address,
+		data: `0x${string}`,
+		value: bigint,
+	): Promise<`0x${string}`> {
+		return this.executeManyRaw(safeWalletId, [{ to, data, value }]);
+	}
+
+	/**
+	 * Batch multiple transactions into a single Safe transaction via MultiSend.
+	 * All calls are atomic — if any reverts, the entire batch reverts.
+	 * Returns the on-chain transaction hash.
+	 */
+	async executeManyRaw(
+		safeWalletId: string,
+		txs: Array<{ to: Address; data: `0x${string}`; value: bigint }>,
+	): Promise<`0x${string}`> {
+		if (txs.length === 0) throw new Error('executeManyRaw requires at least one transaction');
+
+		const safeWallet = await this.prisma.safeWallet.findUnique({ where: { id: safeWalletId } });
+		if (!safeWallet) throw new NotFoundException(`Safe wallet ${safeWalletId} not found`);
+
+		const chainId = safeWallet.chainId as ChainId;
+		const sdk = await this.initSdkForAddress(safeWallet.address, chainId);
+
+		const safeTx = await sdk.createTransaction({
+			transactions: txs.map(({ to, data, value }) => ({ to, data, value: value.toString() })),
+		});
+
+		const signedTx = await sdk.signTransaction(safeTx);
+		const result = await sdk.executeTransaction(signedTx);
+		const txHash = result.hash as `0x${string}`;
+
+		this.logger.log(`Safe batch tx executed — safe: ${safeWallet.address}, ops: ${txs.length}, tx: ${txHash}`);
+
+		await this.viemService.getClient(chainId).waitForTransactionReceipt({ hash: txHash });
+
+		return txHash;
+	}
+
+	/**
 	 * Transfer an ERC-20 token out of a Safe wallet to an external address.
 	 * The operator account (WALLET_PRIVATE_KEY) signs and executes the Safe transaction.
 	 * Returns the on-chain transaction hash.
