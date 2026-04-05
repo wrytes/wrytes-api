@@ -6,14 +6,13 @@ import { KrakenWithdraw } from './kraken.withdraw';
 import { KrakenDeposit } from './kraken.deposit';
 import { KrakenMarket } from './kraken.market';
 import { KrakenOrders } from './kraken.orders';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
 @ApiTags('Kraken')
 @Controller('kraken')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 @RequireScopes('KRAKEN')
 export class KrakenController {

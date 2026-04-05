@@ -1,7 +1,6 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { SafeService } from './safe.service';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -10,7 +9,7 @@ import { ChainId, SUPPORTED_CHAIN_IDS } from '../wallet/wallet.types';
 
 @Controller('safe')
 @ApiTags('Safe')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 @RequireScopes('SAFE')
 export class SafeController {

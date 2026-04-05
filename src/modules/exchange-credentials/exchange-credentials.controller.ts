@@ -2,7 +2,6 @@ import { Body, Controller, Delete, Get, Param, Post, UseGuards } from '@nestjs/c
 import { ApiBody, ApiOperation, ApiParam, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Exchange } from '@prisma/client';
 import type { User } from '@prisma/client';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -10,7 +9,7 @@ import { ExchangeCredentialsService } from './exchange-credentials.service';
 
 @ApiTags('Exchange Credentials')
 @Controller('exchange-credentials')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 @RequireScopes('USER')
 export class ExchangeCredentialsController {

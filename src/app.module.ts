@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
@@ -37,6 +38,8 @@ import { ExchangeCredentialsModule } from './modules/exchange-credentials/exchan
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
+import { ApiKeyGuard } from './common/guards/api-key.guard';
+import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 
 // App
 import { AppController } from './app.controller';
@@ -102,6 +105,10 @@ import { AppService } from './app.service';
     EventsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_GUARD, useClass: ApiKeyGuard },
+    { provide: APP_GUARD, useClass: UserThrottlerGuard },
+  ],
 })
 export class AppModule {}

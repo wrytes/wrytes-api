@@ -4,7 +4,6 @@ import {
   Post,
   Body,
   Query,
-  UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -17,7 +16,7 @@ import {
   ApiSecurity,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
+import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { User } from '@prisma/client';
 
@@ -27,6 +26,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Get('verify')
+  @Public()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify magic link and receive API key' })
   @ApiQuery({ name: 'token', required: true, description: '32-character magic link token' })
@@ -42,7 +42,6 @@ export class AuthController {
   }
 
   @Get('keys')
-  @UseGuards(ApiKeyGuard)
   @ApiSecurity('api-key')
   @ApiOperation({ summary: 'List API keys' })
   @ApiResponse({ status: 200, description: 'List of API keys' })
@@ -53,7 +52,6 @@ export class AuthController {
   }
 
   @Get('scopes')
-  @UseGuards(ApiKeyGuard)
   @ApiSecurity('api-key')
   @ApiOperation({ summary: 'List scopes for the current user' })
   @ApiResponse({ status: 200, description: 'List of scopes' })
@@ -64,7 +62,6 @@ export class AuthController {
   }
 
   @Post('revoke')
-  @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
   @ApiSecurity('api-key')
   @ApiOperation({ summary: 'Revoke API key' })

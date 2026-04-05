@@ -4,13 +4,12 @@ import { WalletBalance } from './wallet.balance';
 import { WalletService } from './wallet.service';
 import { WalletTokenList } from './wallet.tokens';
 import { ChainId } from './wallet.types';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 
 @ApiTags('Wallet')
 @Controller('wallet')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 @RequireScopes('WALLET')
 export class WalletController {

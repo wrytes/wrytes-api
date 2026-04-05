@@ -2,7 +2,6 @@ import { Controller, Get, Post, Body, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiQuery, ApiSecurity, ApiTags } from '@nestjs/swagger';
 import { Currency, MarketGetDeliveryPricesNames, OrderType, TimeInForce } from '@wrytes/deribit-api-client';
 import type { User } from '@prisma/client';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -14,7 +13,7 @@ import { DeribitWallet } from './deribit.wallet';
 
 @ApiTags('Deribit')
 @Controller('deribit')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 @RequireScopes('DERIBIT')
 export class DeribitController {

@@ -17,7 +17,6 @@ import {
   ApiSecurity,
 } from '@nestjs/swagger';
 import { AlchemyService } from './alchemy.service';
-import { ApiKeyGuard } from '../../common/guards/api-key.guard';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { ListQueryDto } from './dtos/ListQuery.dto';
@@ -25,7 +24,7 @@ import { TokenBalancesQueryDto } from './dtos/TokenBalancesQuery.dto';
 
 @ApiTags('Alchemy')
 @Controller('chains/:chain/account')
-@UseGuards(ApiKeyGuard, ScopesGuard)
+@UseGuards(ScopesGuard)
 @ApiSecurity('api-key')
 export class AlchemyController {
   constructor(private readonly alchemyService: AlchemyService) {}
