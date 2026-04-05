@@ -1,8 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import Safe from '@safe-global/protocol-kit';
-import { keccak256, toHex } from 'viem';
+import { encodeFunctionData, erc20Abi, keccak256, toHex } from 'viem';
+import type { Address } from 'viem';
 import { PrismaService } from '../../core/database/prisma.service';
 import { AdminNotificationEvent } from '../../common/events/notification.events';
 import { WalletService } from '../wallet/wallet.service';
@@ -31,6 +32,12 @@ export class SafeService {
 	private rpcUrl(chainId: ChainId): string {
 		const apiKey = this.configService.get<string>('alchemy.apiKey', '');
 		return `https://${ALCHEMY_CHAIN_SLUGS[chainId]}.g.alchemy.com/v2/${apiKey}`;
+	}
+
+	private async initSdkForAddress(safeAddress: string, chainId: ChainId): Promise<Safe> {
+		const privateKey = process.env.WALLET_PRIVATE_KEY;
+		if (!privateKey) throw new Error('WALLET_PRIVATE_KEY is required');
+		return Safe.init({ provider: this.rpcUrl(chainId), signer: privateKey, safeAddress });
 	}
 
 	private async initSdk(saltNonce: string, chainId: ChainId): Promise<Safe> {
@@ -121,5 +128,43 @@ export class SafeService {
 				'success',
 			),
 		);
+	}
+
+	/**
+	 * Transfer an ERC-20 token out of a Safe wallet to an external address.
+	 * The operator account (WALLET_PRIVATE_KEY) signs and executes the Safe transaction.
+	 * Returns the on-chain transaction hash.
+	 */
+	async executeTransfer(
+		safeWalletId: string,
+		tokenAddress: Address,
+		toAddress: Address,
+		amount: bigint,
+	): Promise<`0x${string}`> {
+		const safeWallet = await this.prisma.safeWallet.findUnique({ where: { id: safeWalletId } });
+		if (!safeWallet) throw new NotFoundException(`Safe wallet ${safeWalletId} not found`);
+
+		const chainId = safeWallet.chainId as ChainId;
+		const sdk = await this.initSdkForAddress(safeWallet.address, chainId);
+
+		const data = encodeFunctionData({
+			abi: erc20Abi,
+			functionName: 'transfer',
+			args: [toAddress, amount],
+		});
+
+		const safeTx = await sdk.createTransaction({
+			transactions: [{ to: tokenAddress, value: '0', data }],
+		});
+
+		const signedTx = await sdk.signTransaction(safeTx);
+		const result = await sdk.executeTransaction(signedTx);
+		const txHash = result.hash as `0x${string}`;
+
+		this.logger.log(`Safe transfer executed — safe: ${safeWallet.address}, token: ${tokenAddress}, to: ${toAddress}, tx: ${txHash}`);
+
+		await this.viemService.getClient(chainId).waitForTransactionReceipt({ hash: txHash });
+
+		return txHash;
 	}
 }
