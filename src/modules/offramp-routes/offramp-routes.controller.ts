@@ -123,7 +123,7 @@ export class OffRampRoutesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Pause an active route (stops monitoring)' })
   @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 400, description: 'Route is already paused or archived' })
+  @ApiResponse({ status: 400, description: 'Route is already paused' })
   pause(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.pause(id, user.id);
   }
@@ -132,7 +132,7 @@ export class OffRampRoutesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activate a paused route' })
   @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 400, description: 'Route is already active or archived' })
+  @ApiResponse({ status: 400, description: 'Route is already active' })
   activate(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.activate(id, user.id);
   }

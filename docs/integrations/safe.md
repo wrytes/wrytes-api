@@ -24,7 +24,9 @@ Safe labels have two namespaces:
 | Namespace | Example | Purpose |
 |---|---|---|
 | General | `primary` | Member's own Safe wallets |
-| Off-ramp | `offramp:usdt-chf` | Automatically provisioned per off-ramp route |
+| Off-ramp | `offramp:{bankAccountId}:{currency}` | Automatically provisioned per off-ramp route |
+
+Off-ramp Safe labels are keyed to the bank account ID and currency, not the route label. This means the deposit address remains stable even if the route is renamed.
 
 Off-ramp Safes are created by the `OffRampRoutesService` when a route is created. Members do not need to create them manually.
 
