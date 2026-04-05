@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Body, Param,
+  Controller, Get, Post, Patch, Delete, Body, Param,
   HttpCode, HttpStatus, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiBody } from '@nestjs/swagger';
@@ -137,14 +137,14 @@ export class OffRampRoutesController {
     return this.service.activate(id, user.id);
   }
 
-  @Patch(':id/archive')
+  @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @RequireScopes('ADMIN')
-  @ApiOperation({ summary: 'Archive a route (permanent, admin only)' })
+  @ApiOperation({ summary: 'Delete a route (admin only)' })
   @ApiParam({ name: 'id' })
-  @ApiResponse({ status: 400, description: 'Route is already archived' })
-  archive(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.service.archive(id, user.id);
+  @ApiResponse({ status: 404, description: 'Route not found' })
+  delete(@Param('id') id: string) {
+    return this.service.delete(id);
   }
 
   @Patch(':id')

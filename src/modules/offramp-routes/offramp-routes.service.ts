@@ -99,7 +99,6 @@ export class OffRampRoutesService {
   async pause(id: string, userId: string) {
     const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
     if (!route) throw new NotFoundException('Route not found');
-    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Archived routes cannot be modified');
     if (route.status === OffRampRouteStatus.PAUSED) throw new BadRequestException('Route is already paused');
     return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.PAUSED } });
   }
@@ -107,16 +106,14 @@ export class OffRampRoutesService {
   async activate(id: string, userId: string) {
     const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
     if (!route) throw new NotFoundException('Route not found');
-    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Archived routes cannot be modified');
     if (route.status === OffRampRouteStatus.ACTIVE) throw new BadRequestException('Route is already active');
     return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.ACTIVE } });
   }
 
-  async archive(id: string, userId: string) {
-    const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
+  async delete(id: string) {
+    const route = await this.prisma.offRampRoute.findUnique({ where: { id } });
     if (!route) throw new NotFoundException('Route not found');
-    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Route is already archived');
-    return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.ARCHIVED } });
+    return this.prisma.offRampRoute.delete({ where: { id } });
   }
 
   async update(id: string, userId: string, dto: UpdateRouteDto) {

@@ -160,7 +160,6 @@ model BankAccount {
 enum OffRampRouteStatus {
   ACTIVE
   PAUSED
-  ARCHIVED
 }
 
 model OffRampRoute {
