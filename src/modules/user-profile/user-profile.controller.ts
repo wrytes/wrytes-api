@@ -16,6 +16,7 @@ import {
   ApiResponse,
   ApiSecurity,
   ApiParam,
+  ApiBody,
 } from '@nestjs/swagger';
 import { UserProfileService, UpsertProfileDto } from './user-profile.service';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
@@ -33,7 +34,28 @@ export class UserProfileController {
   @Get()
   @RequireScopes('USER')
   @ApiOperation({ summary: 'Get own profile' })
-  @ApiResponse({ status: 200, description: 'Profile returned' })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile returned',
+    schema: {
+      example: {
+        id: 'cm9abc123def456',
+        userId: 'cm9usr789ghi012',
+        firstName: 'Jane',
+        lastName: 'Doe',
+        businessName: null,
+        dateOfBirth: '1990-06-15T00:00:00.000Z',
+        street: 'Bahnhofstrasse 1',
+        city: 'Zurich',
+        postalCode: '8001',
+        country: 'CH',
+        isVerified: true,
+        verifiedAt: '2026-03-01T12:00:00.000Z',
+        createdAt: '2026-01-10T09:00:00.000Z',
+        updatedAt: '2026-03-01T12:00:00.000Z',
+      },
+    },
+  })
   @ApiResponse({ status: 404, description: 'Profile not found' })
   async get(@CurrentUser() user: User) {
     return this.service.get(user.id);
@@ -42,6 +64,30 @@ export class UserProfileController {
   @Put()
   @RequireScopes('USER')
   @ApiOperation({ summary: 'Create or update own profile' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        firstName: { type: 'string', example: 'Jane' },
+        lastName: { type: 'string', example: 'Doe' },
+        businessName: { type: 'string', example: null, nullable: true },
+        dateOfBirth: { type: 'string', format: 'date', example: '1990-06-15' },
+        street: { type: 'string', example: 'Bahnhofstrasse 1' },
+        city: { type: 'string', example: 'Zurich' },
+        postalCode: { type: 'string', example: '8001' },
+        country: { type: 'string', example: 'CH', description: 'ISO 3166-1 alpha-2' },
+      },
+      example: {
+        firstName: 'Jane',
+        lastName: 'Doe',
+        dateOfBirth: '1990-06-15',
+        street: 'Bahnhofstrasse 1',
+        city: 'Zurich',
+        postalCode: '8001',
+        country: 'CH',
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: 'Profile saved' })
   async upsert(@CurrentUser() user: User, @Body() dto: UpsertProfileDto) {
     return this.service.upsert(user.id, dto);

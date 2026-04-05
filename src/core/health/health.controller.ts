@@ -9,6 +9,7 @@ import {
 import { Injectable } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { PrismaService } from '../database/prisma.service';
+import { Public } from '../../common/decorators/public.decorator';
 
 @Injectable()
 class DatabaseHealthIndicator extends HealthIndicator {
@@ -39,6 +40,7 @@ export class HealthController {
   }
 
   @Get()
+  @Public()
   @HealthCheck()
   @ApiOperation({ summary: 'Health check' })
   check() {
