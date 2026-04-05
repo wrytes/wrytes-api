@@ -1,13 +1,32 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { FiatCurrency, OffRampRouteStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../core/database/prisma.service';
 import { SafeService } from '../../integrations/safe/safe.service';
 
 export class CreateRouteDto {
+  @IsString()
   label!: string;
+
+  @IsEnum(FiatCurrency)
   targetCurrency!: FiatCurrency;
+
+  @IsString()
   bankAccountId!: string;
+
+  @IsOptional()
+  @IsString()
+  minTriggerAmount?: string;
+}
+
+export class UpdateRouteDto {
+  @IsOptional()
+  @IsString()
+  label?: string;
+
+  @IsOptional()
+  @IsString()
   minTriggerAmount?: string;
 }
 
@@ -35,9 +54,8 @@ export class OffRampRoutesService {
     });
     if (existing) throw new ConflictException(`Route with label "${dto.label}" already exists`);
 
-    // Auto-provision a dedicated Safe using the route label as identifier
-    const safeLabel = `offramp:${dto.label}`;
-    const safeWallet = await this.safe.getOrCreate(userId, 1, safeLabel);
+    // Auto-provision a dedicated Safe keyed to bankAccountId + currency (stable, label-independent).
+    const safeWallet = await this.safe.getOrCreate(userId, 1, `offramp:${dto.bankAccountId}:${dto.targetCurrency}`);
 
     const route = await this.prisma.offRampRoute.create({
       data: {
@@ -78,18 +96,46 @@ export class OffRampRoutesService {
     return { ...route, depositAddress: route.safeWallet.address };
   }
 
-  async setStatus(id: string, userId: string, status: OffRampRouteStatus) {
+  async pause(id: string, userId: string) {
     const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
     if (!route) throw new NotFoundException('Route not found');
-    return this.prisma.offRampRoute.update({ where: { id }, data: { status } });
+    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Archived routes cannot be modified');
+    if (route.status === OffRampRouteStatus.PAUSED) throw new BadRequestException('Route is already paused');
+    return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.PAUSED } });
   }
 
-  async updateMinTrigger(id: string, userId: string, minTriggerAmount: string) {
+  async activate(id: string, userId: string) {
     const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
     if (!route) throw new NotFoundException('Route not found');
+    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Archived routes cannot be modified');
+    if (route.status === OffRampRouteStatus.ACTIVE) throw new BadRequestException('Route is already active');
+    return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.ACTIVE } });
+  }
+
+  async archive(id: string, userId: string) {
+    const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
+    if (!route) throw new NotFoundException('Route not found');
+    if (route.status === OffRampRouteStatus.ARCHIVED) throw new BadRequestException('Route is already archived');
+    return this.prisma.offRampRoute.update({ where: { id }, data: { status: OffRampRouteStatus.ARCHIVED } });
+  }
+
+  async update(id: string, userId: string, dto: UpdateRouteDto) {
+    const route = await this.prisma.offRampRoute.findFirst({ where: { id, userId } });
+    if (!route) throw new NotFoundException('Route not found');
+
+    if (dto.label && dto.label !== route.label) {
+      const conflict = await this.prisma.offRampRoute.findUnique({
+        where: { userId_label: { userId, label: dto.label } },
+      });
+      if (conflict) throw new ConflictException(`Route with label "${dto.label}" already exists`);
+    }
+
     return this.prisma.offRampRoute.update({
       where: { id },
-      data: { minTriggerAmount: new Decimal(minTriggerAmount) },
+      data: {
+        ...(dto.label !== undefined && { label: dto.label }),
+        ...(dto.minTriggerAmount !== undefined && { minTriggerAmount: new Decimal(dto.minTriggerAmount) }),
+      },
     });
   }
 

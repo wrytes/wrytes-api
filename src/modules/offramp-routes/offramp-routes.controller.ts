@@ -3,8 +3,7 @@ import {
   HttpCode, HttpStatus, UseGuards,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiBody } from '@nestjs/swagger';
-import { OffRampRouteStatus } from '@prisma/client';
-import { OffRampRoutesService, CreateRouteDto } from './offramp-routes.service';
+import { OffRampRoutesService, CreateRouteDto, UpdateRouteDto } from './offramp-routes.service';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -122,38 +121,47 @@ export class OffRampRoutesController {
 
   @Patch(':id/pause')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Pause a route (stops monitoring)' })
+  @ApiOperation({ summary: 'Pause an active route (stops monitoring)' })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 400, description: 'Route is already paused or archived' })
   pause(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.service.setStatus(id, user.id, OffRampRouteStatus.PAUSED);
+    return this.service.pause(id, user.id);
   }
 
   @Patch(':id/activate')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Re-activate a paused route' })
+  @ApiOperation({ summary: 'Activate a paused route' })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 400, description: 'Route is already active or archived' })
   activate(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.service.setStatus(id, user.id, OffRampRouteStatus.ACTIVE);
+    return this.service.activate(id, user.id);
   }
 
   @Patch(':id/archive')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Archive a route (permanent)' })
+  @RequireScopes('ADMIN')
+  @ApiOperation({ summary: 'Archive a route (permanent, admin only)' })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 400, description: 'Route is already archived' })
   archive(@CurrentUser() user: User, @Param('id') id: string) {
-    return this.service.setStatus(id, user.id, OffRampRouteStatus.ARCHIVED);
+    return this.service.archive(id, user.id);
   }
 
-  @Patch(':id/min-trigger')
+  @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update minimum trigger amount' })
-  @ApiParam({ name: 'id' })
-  @ApiBody({ schema: { type: 'object', properties: { amount: { type: 'string', example: '50' } } } })
-  updateMinTrigger(
-    @CurrentUser() user: User,
-    @Param('id') id: string,
-    @Body('amount') amount: string,
-  ) {
-    return this.service.updateMinTrigger(id, user.id, amount);
+  @ApiOperation({ summary: 'Update route label and/or minimum trigger amount' })
+  @ApiParam({ name: 'id', example: 'cm9rte001abc' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        label: { type: 'string', example: 'quarterly-bonus' },
+        minTriggerAmount: { type: 'string', example: '100' },
+      },
+    },
+  })
+  @ApiResponse({ status: 409, description: 'Label already in use' })
+  update(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: UpdateRouteDto) {
+    return this.service.update(id, user.id, dto);
   }
 }
