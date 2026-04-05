@@ -71,7 +71,7 @@ export class OffRampProcessor extends WorkerHost {
           await this.handleDetected(execution);
           break;
         case 'TRANSFERRING':
-          await this.handleWaitDeposit(execution, job.attemptsMade);
+          await this.handleWaitDeposit(execution, job.data.pollAttempt ?? 0);
           break;
         case 'DEPOSITED':
           await this.handleSell(execution);
@@ -80,7 +80,7 @@ export class OffRampProcessor extends WorkerHost {
           await this.handleWithdraw(execution);
           break;
         case 'WITHDRAWING':
-          await this.handleCheckWithdrawal(execution, job.attemptsMade);
+          await this.handleCheckWithdrawal(execution, job.data.pollAttempt ?? 0);
           break;
         default:
           this.logger.warn(`Execution ${executionId} in terminal status ${execution.status} — skipping`);
@@ -121,11 +121,7 @@ export class OffRampProcessor extends WorkerHost {
     const tokenConfig = ENABLED_TOKENS.find((t) => t.symbol === execution.tokenSymbol);
     if (!tokenConfig) throw new Error(`Token ${execution.tokenSymbol} not found in config`);
 
-    console.log('[handleConvert] tokenAmount raw:', execution.tokenAmount, typeof execution.tokenAmount);
-    console.log('[handleConvert] tokenAmount.toString():', execution.tokenAmount.toString());
-    console.log('[handleConvert] tokenConfig.decimals:', tokenConfig.decimals);
     const amount = parseUnits(execution.tokenAmount.toString(), tokenConfig.decimals);
-    console.log('[handleConvert] parsed amount:', amount.toString());
 
     this.logger.log(`Converting ${execution.tokenAmount} ${execution.tokenSymbol} via strategy (safe: ${safeWallet.address})`);
 
@@ -263,8 +259,9 @@ export class OffRampProcessor extends WorkerHost {
     );
 
     if (!match) {
-      this.logger.log(`Execution ${execution.id}: waiting for Kraken deposit confirmation (attempt ${attempt})`);
-      throw new Error('RETRY'); // BullMQ will retry with delay
+      this.logger.log(`Execution ${execution.id}: waiting for Kraken deposit confirmation (attempt ${attempt + 1}/${DEPOSIT_POLL_MAX_ATTEMPTS})`);
+      await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS, attempt + 1);
+      return;
     }
 
     await this.prisma.offRampExecution.update({
@@ -374,8 +371,9 @@ export class OffRampProcessor extends WorkerHost {
     );
 
     if (!match) {
-      this.logger.log(`Execution ${execution.id}: waiting for fiat withdrawal (attempt ${attempt})`);
-      throw new Error('RETRY');
+      this.logger.log(`Execution ${execution.id}: waiting for fiat withdrawal (attempt ${attempt + 1}/${WITHDRAWAL_POLL_MAX_ATTEMPTS})`);
+      await this.enqueueNext(execution.id, WITHDRAWAL_POLL_DELAY_MS, attempt + 1);
+      return;
     }
 
     const route = execution.route;
@@ -404,11 +402,11 @@ export class OffRampProcessor extends WorkerHost {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
-  private async enqueueNext(executionId: string, delayMs: number) {
+  private async enqueueNext(executionId: string, delayMs: number, pollAttempt = 0) {
     await this.queue.add(
       OFFRAMP_QUEUE,
-      { executionId },
-      { delay: delayMs, attempts: DEPOSIT_POLL_MAX_ATTEMPTS, backoff: { type: 'fixed', delay: DEPOSIT_POLL_DELAY_MS } },
+      { executionId, pollAttempt },
+      { delay: delayMs },
     );
   }
 

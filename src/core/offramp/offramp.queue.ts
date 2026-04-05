@@ -4,6 +4,8 @@ export const OFFRAMP_QUEUE = 'offramp';
 
 export interface OffRampJobData {
   executionId: string;
+  /** Incremented on each polling re-enqueue; used to enforce max wait time without BullMQ retries */
+  pollAttempt?: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -66,8 +66,6 @@ export class MonitorService implements OnModuleInit {
 		const active = await this.routes.listActiveSafeAddresses();
 		if (!active.length) return;
 
-		console.log(active.length);
-
 		this.logger.debug(
 			`Polling ${active.length} active Safe(s) for incoming transfers`,
 		);
@@ -94,8 +92,6 @@ export class MonitorService implements OnModuleInit {
 			'to',
 			25,
 		);
-
-		console.log(result);
 
 		for (const transfer of result.transfers) {
 			if (
@@ -138,11 +134,15 @@ export class MonitorService implements OnModuleInit {
 		tokenSymbol: string;
 		tokenAmount: string;
 	}) {
-		// De-duplication: skip if already processed
-		const existing = await this.executions.findByDepositTxHash(
-			params.txHash,
-		);
+		// De-duplication: skip if already processed as a deposit
+		const existing = await this.executions.findByDepositTxHash(params.txHash);
 		if (existing) return;
+
+		// Skip if this tx is the on-chain output of a conversion (e.g. 1inch swap landing in Safe)
+		const isConversionOutput = await this.prisma.offRampExecution.findFirst({
+			where: { conversionTxHash: params.txHash },
+		});
+		if (isConversionOutput) return;
 
 		const route = await this.prisma.offRampRoute.findUnique({
 			where: { id: params.routeId },
@@ -162,11 +162,7 @@ export class MonitorService implements OnModuleInit {
 			depositTxHash: params.txHash,
 		});
 
-		await this.queue.add(
-			OFFRAMP_QUEUE,
-			{ executionId: execution.id },
-			{ attempts: 3, backoff: { type: 'exponential', delay: 5000 } },
-		);
+		await this.queue.add(OFFRAMP_QUEUE, { executionId: execution.id });
 
 		this.logger.log(`Execution ${execution.id} queued for processing`);
 	}

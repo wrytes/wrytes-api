@@ -164,7 +164,6 @@ export class OneInchService {
     }
 
     const text = await res.text();
-    console.log(`[1inch] ${path} (${res.status}):`, text.trim());
 
     if (!res.ok) {
       this.logger.error(`1inch ${path} (${res.status}): ${text.trim()}`);
