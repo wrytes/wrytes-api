@@ -18,8 +18,8 @@ export const KRAKEN_DEPOSIT_ASSET: Record<string, string> = {
 
 /** Map from token symbol → preferred Kraken deposit method substring (case-insensitive match) */
 export const KRAKEN_DEPOSIT_METHOD_HINT: Record<string, string> = {
-  USDT: 'ERC20',
-  USDC: 'ERC20',
+  USDT: 'Ethereum',
+  USDC: 'Ethereum',
 };
 
 /** Map from (tokenSymbol, FiatCurrency) → Kraken trading pair */

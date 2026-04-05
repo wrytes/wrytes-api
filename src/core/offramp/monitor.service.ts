@@ -62,8 +62,7 @@ export class MonitorService implements OnModuleInit {
   }
 
   private async checkSafe(routeId: string, safeAddress: string, minTriggerAmount: Decimal) {
-    // Fetch recent incoming ERC-20 transfers, bypass cache by using direct Alchemy call
-    const result = await this.alchemy.getTokenTransfers(CHAIN, safeAddress, 'to', 25);
+    const result = await this.alchemy.getTokenTransfersFresh(CHAIN, safeAddress, 'to', 25);
 
     for (const transfer of result.transfers) {
       if (!transfer.to || transfer.to.toLowerCase() !== safeAddress.toLowerCase()) continue;
@@ -98,7 +97,7 @@ export class MonitorService implements OnModuleInit {
     tokenAmount: string;
   }) {
     // De-duplication: skip if already processed
-    const existing = await this.executions.findByTxHash(params.txHash);
+    const existing = await this.executions.findByDepositTxHash(params.txHash);
     if (existing) return;
 
     const route = await this.prisma.offRampRoute.findUnique({
@@ -116,7 +115,7 @@ export class MonitorService implements OnModuleInit {
       userId: route.userId,
       tokenSymbol: params.tokenSymbol,
       tokenAmount: params.tokenAmount,
-      onChainTxHash: params.txHash,
+      depositTxHash: params.txHash,
     });
 
     await this.queue.add(OFFRAMP_QUEUE, { executionId: execution.id }, { attempts: 3, backoff: { type: 'exponential', delay: 5000 } });

@@ -207,6 +207,7 @@ model OffRampExecution {
   status             OffRampExecutionStatus @default(DETECTED)
   tokenSymbol        String
   tokenAmount        Decimal                @db.Decimal(36, 18)
+  depositTxHash      String?                @unique
   onChainTxHash      String?
   krakenDepositRef   String?
   krakenOrderId      String?

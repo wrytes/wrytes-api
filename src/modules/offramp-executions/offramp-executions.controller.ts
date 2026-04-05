@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Param, Query, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { OffRampExecutionsService } from './offramp-executions.service';
@@ -103,6 +103,16 @@ export class OffRampExecutionsController {
   @ApiResponse({ status: 404, description: 'Execution not found' })
   get(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.get(id, user.id);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @RequireScopes('ADMIN')
+  @ApiOperation({ summary: 'Delete an execution (admin only)' })
+  @ApiParam({ name: 'id', example: 'cm9exe001xyz' })
+  @ApiResponse({ status: 404, description: 'Execution not found' })
+  delete(@Param('id') id: string) {
+    return this.service.delete(id);
   }
 
   @Patch(':id/settle')

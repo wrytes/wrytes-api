@@ -26,9 +26,9 @@ export class OffRampExecutionsService {
     userId: string;
     tokenSymbol: string;
     tokenAmount: string;
-    onChainTxHash: string;
+    depositTxHash: string;
   }) {
-    return this.prisma.offRampExecution.create({ data: { ...data, tokenAmount: data.tokenAmount } });
+    return this.prisma.offRampExecution.create({ data });
   }
 
   // Internal: advance status
@@ -50,9 +50,9 @@ export class OffRampExecutionsService {
     });
   }
 
-  // Internal: find by tx hash (de-duplication)
-  async findByTxHash(txHash: string) {
-    return this.prisma.offRampExecution.findFirst({ where: { onChainTxHash: txHash } });
+  // Internal: find by deposit tx hash (de-duplication)
+  async findByDepositTxHash(txHash: string) {
+    return this.prisma.offRampExecution.findFirst({ where: { depositTxHash: txHash } });
   }
 
   // Admin: list all executions awaiting manual bank transfer
@@ -68,6 +68,13 @@ export class OffRampExecutionsService {
       },
       orderBy: { updatedAt: 'asc' },
     });
+  }
+
+  // Admin: hard delete an execution
+  async delete(id: string) {
+    const execution = await this.prisma.offRampExecution.findUnique({ where: { id } });
+    if (!execution) throw new NotFoundException('Execution not found');
+    return this.prisma.offRampExecution.delete({ where: { id } });
   }
 
   // Admin: mark an execution as settled after manual bank transfer

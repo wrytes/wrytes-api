@@ -29,7 +29,7 @@ export class AlchemyService {
   // Core RPC helper
   // ---------------------------------------------------------------------------
 
-  private async rpc<T>(chain: string, method: string, params: any[]): Promise<T> {
+  async rpc<T>(chain: string, method: string, params: any[]): Promise<T> {
     let res: Response;
     try {
       res = await fetch(this.url(chain), {
@@ -135,6 +135,20 @@ export class AlchemyService {
       maxCount: `0x${limit.toString(16)}`,
       ...(pageKey && { pageKey }),
     });
+  }
+
+  /** Bypasses cache — use for monitor polling where stale results cause missed deposits. */
+  async getTokenTransfersFresh(
+    chain: string, address: string, direction: 'from' | 'to', limit: number,
+  ): Promise<AssetTransfersResult> {
+    const params = {
+      [direction === 'from' ? 'fromAddress' : 'toAddress']: address,
+      category: ['erc20'],
+      withMetadata: true,
+      excludeZeroValue: false,
+      maxCount: `0x${limit.toString(16)}`,
+    };
+    return this.rpc<AssetTransfersResult>(chain, 'alchemy_getAssetTransfers', [params]);
   }
 
   async getContractTokenTransfers(

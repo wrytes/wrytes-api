@@ -65,7 +65,7 @@ export class OffRampProcessor extends WorkerHost {
           await this.handleTransfer(execution);
           break;
         case 'TRANSFERRING':
-          await this.handleWaitDeposit(execution, job.opts.attempts ?? 0);
+          await this.handleWaitDeposit(execution, job.attemptsMade);
           break;
         case 'DEPOSITED':
           await this.handleSell(execution);
@@ -74,7 +74,7 @@ export class OffRampProcessor extends WorkerHost {
           await this.handleWithdraw(execution);
           break;
         case 'WITHDRAWING':
-          await this.handleCheckWithdrawal(execution, job.opts.attempts ?? 0);
+          await this.handleCheckWithdrawal(execution, job.attemptsMade);
           break;
         default:
           this.logger.warn(`Execution ${executionId} in terminal status ${execution.status} — skipping`);
@@ -109,10 +109,12 @@ export class OffRampProcessor extends WorkerHost {
     const methodsRes = await this.krakenDeposit.getMethods(OPERATOR, { asset: krakenAsset });
     if (methodsRes.error?.length) throw new Error(`Kraken deposit methods error: ${methodsRes.error.join(', ')}`);
 
+    this.logger.log(`Kraken deposit methods for ${krakenAsset}: ${methodsRes.result.map((m) => m.method).join(', ')}`);
+
     const method = methodsRes.result.find((m) =>
       m.method.toUpperCase().includes(methodHint.toUpperCase()),
     );
-    if (!method) throw new Error(`No ERC20 deposit method found for ${krakenAsset}`);
+    if (!method) throw new Error(`No ERC20 deposit method found for ${krakenAsset}. Available: ${methodsRes.result.map((m) => m.method).join(', ')}`);
 
     const addrRes = await this.krakenDeposit.getAddresses(OPERATOR, {
       asset: krakenAsset,
