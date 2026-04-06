@@ -72,7 +72,7 @@ export class MonitorService implements OnModuleInit {
 
 		for (const { routeId, address, minTriggerAmount } of active) {
 			try {
-				await this.checkSafe(routeId, address, Decimal(0.2));
+				await this.checkSafe(routeId, address, minTriggerAmount);
 			} catch (err) {
 				this.logger.error(
 					`Poll error for Safe ${address}: ${err instanceof Error ? err.message : err}`,
@@ -135,13 +135,17 @@ export class MonitorService implements OnModuleInit {
 		tokenAmount: string;
 	}) {
 		// De-duplication: skip if already processed as a deposit
-		const existing = await this.executions.findByDepositTxHash(params.txHash);
+		const existing = await this.executions.findByDepositTxHash(
+			params.txHash,
+		);
 		if (existing) return;
 
 		// Skip if this tx is the on-chain output of a conversion (e.g. 1inch swap landing in Safe)
-		const isConversionOutput = await this.prisma.offRampExecution.findFirst({
-			where: { conversionTxHash: params.txHash },
-		});
+		const isConversionOutput = await this.prisma.offRampExecution.findFirst(
+			{
+				where: { conversionTxHash: params.txHash },
+			},
+		);
 		if (isConversionOutput) return;
 
 		const route = await this.prisma.offRampRoute.findUnique({

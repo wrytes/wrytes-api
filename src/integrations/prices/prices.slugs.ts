@@ -41,14 +41,15 @@ export const TOKEN_SLUGS: Record<string, Partial<Record<PriceSourceId, string>>>
  * without a separate forex feed.
  */
 export const KRAKEN_PAIRS: Array<{ from: string; to: string; krakenPair: string }> = [
-  { from: 'ETH',  to: 'USD', krakenPair: 'ETHUSD' },
-  { from: 'ETH',  to: 'CHF', krakenPair: 'ETHCHF' },
+  { from: 'ETH',  to: 'USD', krakenPair: 'ETHUSD'  },
+  { from: 'ETH',  to: 'CHF', krakenPair: 'ETHCHF'  },
+  { from: 'ETH',  to: 'EUR', krakenPair: 'ETHEUR'  },
   { from: 'USDT', to: 'CHF', krakenPair: 'USDTCHF'  },
+  { from: 'USDT', to: 'EUR', krakenPair: 'USDTEUR'  },
   { from: 'USDC', to: 'CHF', krakenPair: 'USDCCHF'  },
-  // Bridge: USD → CHF via USDC as proxy (USDC ≈ 1 USD)
-  { from: 'USD',  to: 'CHF', krakenPair: 'USDCCHF'  },
-  // Bridge: USD → EUR via USDC as proxy (USDC ≈ 1 USD)
   { from: 'USDC', to: 'EUR', krakenPair: 'USDCEUR'  },
+  // Bridges: USD → CHF/EUR via USDC as proxy (USDC ≈ 1 USD)
+  { from: 'USD',  to: 'CHF', krakenPair: 'USDCCHF'  },
   { from: 'USD',  to: 'EUR', krakenPair: 'USDCEUR'  },
 ];
 
