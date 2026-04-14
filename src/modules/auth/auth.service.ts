@@ -139,6 +139,35 @@ export class AuthService {
     return this.prisma.user.findUnique({ where: { telegramId } });
   }
 
+  async getCurrentUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        profile: true,
+        userWallets: { where: { isActive: true }, select: { address: true, label: true } },
+        scopes: { select: { scopeKey: true } },
+      },
+    });
+
+    if (!user) throw new NotFoundException('User not found');
+
+    return {
+      id: user.id,
+      telegramHandle: user.telegramHandle ?? null,
+      notificationsEnabled: user.notificationsEnabled,
+      scopes: user.scopes.map((s) => s.scopeKey),
+      wallets: user.userWallets,
+      profile: user.profile
+        ? {
+            firstName: user.profile.firstName,
+            lastName: user.profile.lastName,
+            businessName: user.profile.businessName ?? null,
+            isVerified: user.profile.isVerified,
+          }
+        : null,
+    };
+  }
+
   async getUserScopes(userId: string): Promise<string[]> {
     const scopes = await this.prisma.userScope.findMany({
       where: { userId },
