@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { version } from '../package.json';
 
 @Injectable()
 export class AppService {
-  getHello(): string {
-    return 'Wrytes API is running';
+  getRoot(): { message: string; version: string } {
+    return { message: 'Wrytes API is running', version };
   }
 }
