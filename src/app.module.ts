@@ -40,13 +40,14 @@ import { UserProfileModule } from './modules/user-profile/user-profile.module';
 import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { OffRampRoutesModule } from './modules/offramp-routes/offramp-routes.module';
 import { OffRampExecutionsModule } from './modules/offramp-executions/offramp-executions.module';
+import { UserWalletsModule } from './modules/user-wallets/user-wallets.module';
 
 // Core modules
 import { OffRampCoreModule } from './core/offramp/offramp-core.module';
 
 // Common modules
 import { EventsModule } from './common/events/events.module';
-import { ApiKeyGuard } from './common/guards/api-key.guard';
+import { CombinedAuthGuard } from './common/guards/combined-auth.guard';
 import { UserThrottlerGuard } from './common/guards/user-throttler.guard';
 
 // App
@@ -127,12 +128,13 @@ import { AppService } from './app.service';
     OffRampCoreModule,
     WalletModule,
     PricesModule,
+    UserWalletsModule,
     EventsModule,
   ],
   controllers: [AppController],
   providers: [
     AppService,
-    { provide: APP_GUARD, useClass: ApiKeyGuard },
+    { provide: APP_GUARD, useClass: CombinedAuthGuard },
     { provide: APP_GUARD, useClass: UserThrottlerGuard },
   ],
 })
