@@ -58,12 +58,68 @@ export class UserWalletsService {
    * before creating a link token. The message embeds the address so the
    * backend can verify it matches the submitted address.
    */
-  getLinkMessage(address: string): string {
-    return `Link wallet to Wrytes\n\nAddress: ${address}\n\nBy signing this message you confirm ownership of this wallet.`;
+  getLinkMessage(address: string, issuedAt = new Date()): string {
+    const expires = new Date(issuedAt.getTime() + this.LINK_TOKEN_EXPIRY_MINUTES * 60 * 1000);
+    return (
+      `Link wallet to Wrytes\n\n` +
+      `Address: ${address}\n` +
+      `Issued: ${issuedAt.toISOString()}\n` +
+      `Expires: ${expires.toISOString()}\n\n` +
+      `By signing this message you confirm ownership of this wallet.`
+    );
+  }
+
+  /**
+   * Parse and strictly validate the link ownership message.
+   * Rebuilds the expected string from the embedded timestamps and compares
+   * character-for-character — prevents signing arbitrary messages.
+   */
+  private validateLinkMessage(message: string, address: string): void {
+    // Extract Issued and Expires lines
+    const issuedMatch = message.match(/^Issued: (.+)$/m);
+    const expiresMatch = message.match(/^Expires: (.+)$/m);
+
+    if (!issuedMatch || !expiresMatch) {
+      throw new BadRequestException('Malformed link message: missing Issued/Expires fields');
+    }
+
+    const issuedAt = new Date(issuedMatch[1].trim());
+    const expiresAt = new Date(expiresMatch[1].trim());
+
+    if (isNaN(issuedAt.getTime()) || isNaN(expiresAt.getTime())) {
+      throw new BadRequestException('Malformed link message: invalid timestamps');
+    }
+
+    // Expires must be in the future
+    if (expiresAt <= new Date()) {
+      throw new BadRequestException('Link message has expired');
+    }
+
+    // Expires must not be more than LINK_TOKEN_EXPIRY_MINUTES + 1 min ahead of Issued
+    // (prevents backdating Issued to extend validity)
+    const maxWindow = (this.LINK_TOKEN_EXPIRY_MINUTES + 1) * 60 * 1000;
+    if (expiresAt.getTime() - issuedAt.getTime() > maxWindow) {
+      throw new BadRequestException('Link message expiry window is too large');
+    }
+
+    // Issued must not be more than 5 minutes in the past (replay protection)
+    const fiveMinutes = 5 * 60 * 1000;
+    if (Date.now() - issuedAt.getTime() > fiveMinutes + maxWindow) {
+      throw new BadRequestException('Link message is too old');
+    }
+
+    // Rebuild the expected message and compare exactly
+    const expected = this.getLinkMessage(address, issuedAt);
+    if (message !== expected) {
+      throw new BadRequestException('Link message does not match the required format');
+    }
   }
 
   async createLinkToken(dto: CreateLinkTokenDto): Promise<{ token: string; expiresAt: Date }> {
     const address = this.checksum(dto.address);
+
+    // Validate message structure before touching the signature
+    this.validateLinkMessage(dto.message, address);
 
     const isValid = await verifyMessage({
       address: address as `0x${string}`,
@@ -72,11 +128,6 @@ export class UserWalletsService {
     }).catch(() => false);
 
     if (!isValid) throw new UnauthorizedException('Invalid wallet signature');
-
-    // Loose check: the signed message must at least contain the address
-    if (!dto.message.includes(address)) {
-      throw new BadRequestException('Signed message does not reference the submitted address');
-    }
 
     const existing = await this.prisma.userWallet.findUnique({ where: { address } });
     if (existing?.isActive) throw new ConflictException('Wallet already linked to an account');
