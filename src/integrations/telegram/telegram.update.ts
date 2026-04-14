@@ -110,8 +110,8 @@ export class TelegramUpdate implements OnModuleInit {
 
     try {
       const { token, expiresAt } = await this.authService.createMagicLink(user.id);
-      const baseUrl = process.env.BASE_URL || 'http://localhost:3030';
-      const magicLink = `${baseUrl}/auth/verify?token=${token}`;
+      const appUrl = process.env.APP_URL || 'http://localhost:3000';
+      const magicLink = `${appUrl}/auth/api-key?token=${token}`;
       const expiresIn = Math.round((expiresAt.getTime() - Date.now()) / 60000);
 
       await ctx.reply(
