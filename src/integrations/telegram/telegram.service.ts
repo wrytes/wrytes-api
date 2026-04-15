@@ -65,6 +65,54 @@ export class TelegramService implements OnModuleInit {
     await this.sendMarkdownMessage(chatId, message);
   }
 
+  /**
+   * Sends an inline-keyboard 2FA prompt and returns the Telegram message ID
+   * so the caller can later edit the message after the user decides.
+   */
+  async sendWalletAuthRequest(
+    chatId: number,
+    sessionId: string,
+    address: string,
+    expiresAt: Date,
+  ): Promise<number> {
+    const shortAddr = `${address.slice(0, 6)}...${address.slice(-4)}`;
+    const expiresIn = Math.round((expiresAt.getTime() - Date.now()) / 60000);
+
+    const text =
+      `🔐 *Wallet Sign-In Request*\n\n` +
+      `Address: \`${shortAddr}\`\n` +
+      `Expires in: *${expiresIn} min*\n\n` +
+      `Allow this wallet to sign in to Wrytes?`;
+
+    const msg = await this.bot.telegram.sendMessage(chatId, text, {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: '✅ Allow', callback_data: `wallet_auth:allow:${sessionId}` },
+            { text: '❌ Deny', callback_data: `wallet_auth:deny:${sessionId}` },
+          ],
+        ],
+      },
+    });
+
+    return msg.message_id;
+  }
+
+  async editWalletAuthMessage(
+    chatId: number,
+    messageId: number,
+    text: string,
+  ): Promise<void> {
+    try {
+      await this.bot.telegram.editMessageText(chatId, messageId, undefined, text, {
+        parse_mode: 'Markdown',
+      });
+    } catch (err) {
+      this.logger.warn(`Failed to edit message ${messageId}: ${err.message}`);
+    }
+  }
+
   async sendOrderAlert(
     chatId: number,
     orderId: string,

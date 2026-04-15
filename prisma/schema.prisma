@@ -19,13 +19,15 @@ model User {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  apiKeys      ApiKey[]
-  magicLinks   MagicLink[]
-  scopes       UserScope[]
-  safeWallets  SafeWallet[]
-  profile      UserProfile?
-  bankAccounts BankAccount[]
-  offRampRoutes OffRampRoute[]
+  apiKeys            ApiKey[]
+  magicLinks         MagicLink[]
+  scopes             UserScope[]
+  safeWallets        SafeWallet[]
+  profile            UserProfile?
+  bankAccounts       BankAccount[]
+  offRampRoutes      OffRampRoute[]
+  userWallets        UserWallet[]
+  walletAuthSessions WalletAuthSession[]
 }
 
 // ---------------------------------------------------------------------------
@@ -227,6 +229,78 @@ model OffRampExecution {
   @@index([routeId])
   @@index([userId])
   @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// User wallets — EOA addresses linked to a user account
+// ---------------------------------------------------------------------------
+
+/// Linked external wallet (EOA). One address can belong to exactly one user.
+model UserWallet {
+  id        String   @id @default(cuid())
+  userId    String
+  address   String   @unique // EIP-55 checksummed; globally unique
+  label     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_wallets")
+}
+
+/// Reverse magic-key: generated in the app, submitted via Telegram /link to bind a wallet.
+model WalletLinkToken {
+  id            String    @id @default(cuid())
+  token         String    @unique
+  walletAddress String    // the address being linked
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  @@index([walletAddress])
+  @@map("wallet_link_tokens")
+}
+
+/// Short-lived sign-in challenge/nonce for EIP-191 wallet authentication.
+model WalletAuthChallenge {
+  id        String   @id @default(cuid())
+  address   String
+  nonce     String   @unique
+  message   String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([address])
+  @@map("wallet_auth_challenges")
+}
+
+/// Wallet sign-in session — stays PENDING until the user approves via Telegram.
+model WalletAuthSession {
+  id             String           @id @default(cuid())
+  sessionId      String           @unique @default(cuid())
+  walletAddress  String
+  userId         String
+  status         WalletAuthStatus @default(PENDING)
+  jwt            String?          // set on APPROVED
+  telegramChatId BigInt           // user's TG chat for the 2FA prompt
+  telegramMsgId  Int?             // stored so we can edit the message after decision
+  expiresAt      DateTime
+  createdAt      DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("wallet_auth_sessions")
+}
+
+enum WalletAuthStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
 }
 
 // ---------------------------------------------------------------------------

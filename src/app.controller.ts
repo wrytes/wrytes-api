@@ -11,7 +11,7 @@ export class AppController {
   @Get()
   @Public()
   @ApiOperation({ summary: 'API root' })
-  getHello(): string {
-    return this.appService.getHello();
+  getRoot(): { message: string; version: string } {
+    return this.appService.getRoot();
   }
 }

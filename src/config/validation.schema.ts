@@ -6,7 +6,11 @@ export const validationSchema = Joi.object({
 		.valid('development', 'production', 'test')
 		.default('development'),
 	PORT: Joi.number().default(3031),
+	APP_URL: Joi.string().uri().default('http://localhost:3000'),
 	API_KEY_SECRET: Joi.string().min(32).required(),
+
+	// JWT (wallet sign-in; falls back to API_KEY_SECRET if not set)
+	JWT_SECRET: Joi.string().min(32).optional(),
 
 	// Encryption (for bank account IBANs and other sensitive data at rest)
 	ENCRYPTION_KEY: Joi.string().min(32).required(),

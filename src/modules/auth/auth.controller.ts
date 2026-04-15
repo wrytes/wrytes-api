@@ -51,6 +51,26 @@ export class AuthController {
     };
   }
 
+  @Get('me')
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Get current user profile' })
+  @ApiResponse({
+    status: 200,
+    schema: {
+      example: {
+        id: 'cm9abc123',
+        telegramHandle: 'wrytes_user',
+        notificationsEnabled: true,
+        scopes: ['USER', 'OFFRAMP'],
+        wallets: [{ address: '0xd8dA...', label: null }],
+        profile: { firstName: 'Alice', lastName: 'Smith', businessName: null, isVerified: false },
+      },
+    },
+  })
+  async getMe(@CurrentUser() user: User) {
+    return this.authService.getCurrentUser(user.id);
+  }
+
   @Get('keys')
   @ApiSecurity('api-key')
   @ApiOperation({ summary: 'List API keys' })
