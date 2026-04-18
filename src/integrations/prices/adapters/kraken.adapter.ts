@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { KRAKEN_PAIRS } from '../prices.slugs';
+import { KRAKEN_PAIRS } from '../../../config/kraken.config';
 import type { PriceAdapter, Rate } from '../prices.types';
 
 interface KrakenTickerResponse {

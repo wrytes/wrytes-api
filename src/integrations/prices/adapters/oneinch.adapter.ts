@@ -3,24 +3,32 @@ import { getAddress, parseUnits } from 'viem';
 import type { Address } from 'viem';
 import { OneInchService } from '../../oneinch/oneinch.service';
 import { ENABLED_TOKENS } from '../../../config/tokens.config';
-import { ONEINCH_PAIRS } from '../prices.slugs';
+import { ONEINCH_PAIRS } from '../../../config/oneinch.config';
 import type { PriceAdapter, Rate } from '../prices.types';
 
 const CHAIN_ID = 1;
 
 /**
- * Derives on-chain spot prices via 1inch quotes.
- * Intended for tokens without a CEX listing (e.g. ZCHF).
- * Each configured pair in ONEINCH_PAIRS is quoted independently.
+ * Derives on-chain spot prices via 1inch quotes for all whitelisted tokens.
+ *
+ * Route/quote discovery is expensive — call `refreshRoutes()` hourly.
+ * `fetchRates()` just returns the last cached result and is safe to call on every 10-min tick.
  */
 @Injectable()
 export class OneInchPriceAdapter implements PriceAdapter {
   readonly source = 'oneinch' as const;
   private readonly logger = new Logger(OneInchPriceAdapter.name);
+  private cachedRates: Rate[] = [];
 
   constructor(private readonly oneinch: OneInchService) {}
 
+  /** Returns the last set of rates from the most recent `refreshRoutes()` call. */
   async fetchRates(): Promise<Rate[]> {
+    return this.cachedRates;
+  }
+
+  /** Fetches live quotes for all ONEINCH_PAIRS and updates the internal cache. */
+  async refreshRoutes(): Promise<Rate[]> {
     const fetchedAt = new Date();
     const rates: Rate[] = [];
 
@@ -40,17 +48,17 @@ export class OneInchPriceAdapter implements PriceAdapter {
 
         const quote = await this.oneinch.quote(CHAIN_ID, srcAddress, dstAddress, srcAmount);
 
-        // dstAmount is in dstToken base units — normalise to human-readable
         const dstAmount = Number(quote.dstAmount) / 10 ** dstToken.decimals;
         if (!isFinite(dstAmount) || dstAmount <= 0) continue;
 
-        rates.push({ from, to, value: dstAmount, source: 'oneinch', fetchedAt });
+        rates.push({ from, to, value: dstAmount, source: 'oneinch', fetchedAt, protocols: quote.protocols });
       } catch (err) {
         this.logger.warn(`1inch quote failed for ${from}/${to}: ${err.message}`);
       }
     }
 
-    this.logger.debug(`Fetched ${rates.length} rates from 1inch`);
+    this.cachedRates = rates;
+    this.logger.log(`1inch routes refreshed — ${rates.length}/${ONEINCH_PAIRS.length} pairs`);
     return rates;
   }
 }

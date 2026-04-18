@@ -1,4 +1,7 @@
-export type PriceSourceId = 'kraken' | 'defillama' | 'oneinch';
+export type PriceSourceId = 'kraken' | 'defillama' | 'oneinch' | 'derived';
+
+/** Sources that represent actual trading venues — used for route/path resolution. */
+export const ROUTING_SOURCES: PriceSourceId[] = ['oneinch', 'kraken'];
 export type PriceCurrency = 'USD' | 'CHF' | 'EUR';
 
 export interface Rate {
@@ -8,6 +11,8 @@ export interface Rate {
 	value: number;
 	source: PriceSourceId;
 	fetchedAt: Date;
+	/** DEX protocols used internally (1inch only) */
+	protocols?: string[];
 }
 
 export interface ResolvedPrice {

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { TOKEN_SLUGS } from '../prices.slugs';
+import { TOKEN_SLUGS } from '../../../config/tokens.config';
 import type { PriceAdapter, Rate } from '../prices.types';
 
 interface DefiLlamaResponse {

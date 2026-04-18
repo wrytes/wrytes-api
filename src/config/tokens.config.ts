@@ -66,6 +66,48 @@ export const ENABLED_TOKENS: EnabledToken[] = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// DefiLlama slug map — auto-derived from ENABLED_TOKENS mainnet addresses.
+// ETH (native) has no contract so it gets a manual coingecko slug.
+// ---------------------------------------------------------------------------
+
+export const TOKEN_SLUGS: Record<string, Partial<Record<string, string>>> = {
+  ETH: { defillama: 'coingecko:ethereum' },
+  ...Object.fromEntries(
+    ENABLED_TOKENS
+      .filter((t) => t.addresses[1])
+      .map((t) => [t.symbol, { defillama: `ethereum:${t.addresses[1]}` }]),
+  ),
+};
+
+// ---------------------------------------------------------------------------
+// ETH / WETH alias — same asset, wrap/unwrap only. Injected as a 1:1 graph edge.
+// ---------------------------------------------------------------------------
+
+export const ETH_WETH_ALIAS = { from: 'ETH', to: 'WETH', value: 1 } as const;
+
+// ---------------------------------------------------------------------------
+// Peg config — assets sharing a fiat denomination that can still trade freely.
+// The price service resolves the live asset/peg rate and persists it as a
+// `derived` rate so callers can observe the current peg deviation.
+// ---------------------------------------------------------------------------
+
+export interface PegEntry {
+  asset: string;
+  peg: string;
+}
+
+export const PEG_CONFIG: PegEntry[] = [
+  { asset: 'ZCHF', peg: 'CHF' },
+  { asset: 'USDC', peg: 'USD' },
+  { asset: 'USDT', peg: 'USD' },
+  { asset: 'EURC', peg: 'EUR' },
+];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 export function getTokenByAddress(address: Address, chainId: number): EnabledToken | undefined {
   return ENABLED_TOKENS.find(
     (token) => token.addresses[chainId]?.toLowerCase() === address.toLowerCase(),

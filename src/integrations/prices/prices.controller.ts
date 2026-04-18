@@ -44,18 +44,62 @@ export class PricesController {
 	@Get('rates')
 	@ApiOperation({ summary: 'Raw exchange rates from all price sources' })
 	@ApiQuery({ name: 'from', required: false, example: 'WETH', description: 'Filter by source token' })
+	@ApiQuery({ name: 'to',   required: false, example: 'CHF',  description: 'Filter by target token' })
 	@ApiResponse({
 		status: 200,
 		schema: {
 			example: [
 				{ from: 'WETH', to: 'USD', source: 'defillama', value: 3200.5, fetchedAt: '2026-04-05T10:00:00.000Z' },
-				{ from: 'WETH', to: 'USD', source: 'oneinch', value: 3201.1, fetchedAt: '2026-04-05T10:00:00.000Z' },
-				{ from: 'USDT', to: 'CHF', source: 'kraken', value: 0.9, fetchedAt: '2026-04-05T10:00:00.000Z' },
+				{ from: 'ETH',  to: 'CHF', source: 'kraken',    value: 2880.1, fetchedAt: '2026-04-05T10:00:00.000Z' },
 			],
 		},
 	})
-	rates(@Query('from') from?: string) {
-		return this.prices.getRates(from);
+	rates(@Query('from') from?: string, @Query('to') to?: string) {
+		return this.prices.getRates(from, to);
+	}
+
+	@Get('resolve')
+	@ApiOperation({ summary: 'Shortest tradeable path between two tokens (BFS, trading venues only)' })
+	@ApiQuery({ name: 'from', required: true, example: 'ZCHF' })
+	@ApiQuery({ name: 'to',   required: true, example: 'CHF'  })
+	@ApiResponse({
+		status: 200,
+		schema: {
+			example: {
+				from: 'ZCHF',
+				to: 'CHF',
+				rate: 0.9987,
+				legs: [
+					{ from: 'ZCHF', to: 'USDC', source: 'oneinch', via: [], protocols: ['UNISWAP_V3', 'CURVE'] },
+					{ from: 'USDC', to: 'CHF',  source: 'kraken',  via: [] },
+				],
+			},
+		},
+	})
+	resolve(@Query('from') from: string, @Query('to') to: string) {
+		return this.prices.resolveRate(from, to);
+	}
+
+	@Get('routes')
+	@ApiOperation({ summary: 'All tradeable paths between two tokens (DFS, trading venues only)' })
+	@ApiQuery({ name: 'from', required: true, example: 'ZCHF' })
+	@ApiQuery({ name: 'to',   required: true, example: 'CHF'  })
+	@ApiResponse({
+		status: 200,
+		schema: {
+			example: [
+				{
+					rate: 0.9987,
+					legs: [
+						{ from: 'ZCHF', to: 'USDC', source: 'oneinch', via: [], protocols: ['UNISWAP_V3', 'CURVE'] },
+						{ from: 'USDC', to: 'CHF',  source: 'kraken',  via: [] },
+					],
+				},
+			],
+		},
+	})
+	routes(@Query('from') from: string, @Query('to') to: string) {
+		return this.prices.findRoutes(from, to);
 	}
 
 	@Get(':symbol')
