@@ -1,69 +1,34 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Anthropic from '@anthropic-ai/sdk';
+import { OpenAiCompatibleProvider } from './providers/openai-compatible.provider';
+import type { ConversationMessage, InvoiceExtraction } from './ai.provider';
 
-const MODEL = 'claude-sonnet-4-6';
-
-export interface ConversationMessage {
-  role: 'user' | 'assistant';
-  content: string;
-}
+export type { ConversationMessage, InvoiceExtraction };
 
 @Injectable()
-export class AiService {
+export class AiService implements OnModuleInit {
   private readonly logger = new Logger(AiService.name);
-  private readonly client: Anthropic;
+  private provider: OpenAiCompatibleProvider;
 
-  constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('ai.anthropicApiKey');
-    this.client = new Anthropic({ apiKey });
+  constructor(private readonly config: ConfigService) {}
+
+  onModuleInit() {
+    const apiKey  = this.config.get<string>('ai.openaiApiKey', 'ollama');
+    const baseURL = this.config.get<string>('ai.openaiBaseUrl', 'http://localhost:11434/v1');
+    const model   = this.config.get<string>('ai.openaiModel', 'llama3.2-vision:11b');
+    this.provider = new OpenAiCompatibleProvider(apiKey, baseURL, model);
+    this.logger.log(`AI provider: ${baseURL} / ${model}`);
   }
 
-  /**
-   * Single-turn completion — sends a prompt and returns the text response.
-   */
-  async complete(prompt: string, systemPrompt?: string): Promise<string> {
-    try {
-      const response = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: [{ role: 'user', content: prompt }],
-      });
-
-      const text = response.content.find((c) => c.type === 'text') as
-        | Anthropic.TextBlock
-        | undefined;
-      return text?.text ?? '';
-    } catch (err) {
-      this.logger.error(`AI complete failed: ${err.message}`);
-      return '';
-    }
+  complete(prompt: string, systemPrompt?: string): Promise<string> {
+    return this.provider.complete(prompt, systemPrompt);
   }
 
-  /**
-   * Multi-turn conversational assistant.
-   * Pass the full conversation history and an optional system prompt.
-   */
-  async ask(
-    history: ConversationMessage[],
-    systemPrompt = 'You are a helpful assistant.',
-  ): Promise<string> {
-    try {
-      const response = await this.client.messages.create({
-        model: MODEL,
-        max_tokens: 1024,
-        system: systemPrompt,
-        messages: history,
-      });
+  ask(history: ConversationMessage[], systemPrompt?: string): Promise<string> {
+    return this.provider.ask(history, systemPrompt);
+  }
 
-      const text = response.content.find((c) => c.type === 'text') as
-        | Anthropic.TextBlock
-        | undefined;
-      return text?.text ?? 'Unable to generate a response. Please try again.';
-    } catch (err) {
-      this.logger.error(`AI ask failed: ${err.message}`);
-      return 'Unable to generate a response. Please try again.';
-    }
+  extractInvoice(fileData: Buffer, fileType: string): Promise<InvoiceExtraction> {
+    return this.provider.extractInvoice(fileData, fileType);
   }
 }

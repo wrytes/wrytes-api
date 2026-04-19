@@ -106,6 +106,8 @@ async function bootstrap() {
 			'Deribit',
 			'Deribit CEX integration — account, market data, trading, and wallet operations',
 		)
+		.addTag('Invoices', 'Invoice management — create, list, and manage invoices')
+		.addTag('Admin Settings', 'Admin-only configuration — global platform settings and feature flags')
 		.addTag('Telegram', 'Telegram bot webhook receiver')
 		.addTag('Health', 'System health monitoring')
 		.addTag('Root', 'Base API endpoints')
