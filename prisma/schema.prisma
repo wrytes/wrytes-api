@@ -85,6 +85,7 @@ model ApiKey {
   userId     String
   keyId      String    @unique
   secretHash String
+  label      String?
   expiresAt  DateTime?
   revokedAt  DateTime?
   lastUsedAt DateTime?
@@ -141,10 +142,8 @@ model BankAccount {
   userId       String
   iban         String      // AES-256-GCM encrypted
   bic          String
-  holderName   String
   currency     FiatCurrency
   label        String      @default("default")
-  isDefault    Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -171,7 +170,6 @@ model OffRampRoute {
   safeWalletId     String             @unique
   targetCurrency   FiatCurrency
   bankAccountId    String
-  minTriggerAmount Decimal            @default(0) @db.Decimal(36, 18)
   status           OffRampRouteStatus @default(ACTIVE)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -301,6 +299,16 @@ enum WalletAuthStatus {
   APPROVED
   DENIED
   EXPIRED
+}
+
+// ---------------------------------------------------------------------------
+// Token minimum amounts (global, admin-editable)
+// ---------------------------------------------------------------------------
+
+model TokenMinAmount {
+  symbol    String   @id
+  minAmount Decimal  @default(0) @db.Decimal(36, 18)
+  updatedAt DateTime @updatedAt
 }
 
 // ---------------------------------------------------------------------------

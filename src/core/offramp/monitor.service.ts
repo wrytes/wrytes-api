@@ -70,9 +70,9 @@ export class MonitorService implements OnModuleInit {
 			`Polling ${active.length} active Safe(s) for incoming transfers`,
 		);
 
-		for (const { routeId, address, minTriggerAmount } of active) {
+		for (const { routeId, address } of active) {
 			try {
-				await this.checkSafe(routeId, address, minTriggerAmount);
+				await this.checkSafe(routeId, address);
 			} catch (err) {
 				this.logger.error(
 					`Poll error for Safe ${address}: ${err instanceof Error ? err.message : err}`,
@@ -81,11 +81,7 @@ export class MonitorService implements OnModuleInit {
 		}
 	}
 
-	private async checkSafe(
-		routeId: string,
-		safeAddress: string,
-		minTriggerAmount: Decimal,
-	) {
+	private async checkSafe(routeId: string, safeAddress: string) {
 		const result = await this.alchemy.getTokenTransfersFresh(
 			CHAIN,
 			safeAddress,
@@ -107,10 +103,15 @@ export class MonitorService implements OnModuleInit {
 			);
 			if (!token) continue;
 
+			const minRecord = await this.prisma.tokenMinAmount.findUnique({
+				where: { symbol: token.symbol },
+			});
+			const minTriggerAmount = minRecord ? minRecord.minAmount : new Decimal(0);
+
 			const amount = transfer.value ?? 0;
 			if (new Decimal(amount).lt(minTriggerAmount)) {
 				this.logger.debug(
-					`Transfer ${transfer.hash}: amount ${amount} below threshold ${minTriggerAmount} — skipping`,
+					`Transfer ${transfer.hash}: amount ${amount} below threshold ${minTriggerAmount} for ${token.symbol} — skipping`,
 				);
 				continue;
 			}

@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import Safe from '@safe-global/protocol-kit';
@@ -76,15 +76,6 @@ export class SafeService {
 		return this.prisma.safeWallet.create({
 			data: { userId, chainId, label, address, saltNonce },
 		});
-	}
-
-	async deleteWallet(id: string, force = false): Promise<void> {
-		const wallet = await this.prisma.safeWallet.findUnique({ where: { id } });
-		if (!wallet) throw new NotFoundException(`Safe wallet ${id} not found`);
-		if (wallet.deployed && !force) {
-			throw new BadRequestException('Cannot delete a deployed Safe wallet. Use force=true to override.');
-		}
-		await this.prisma.safeWallet.delete({ where: { id } });
 	}
 
 	async listWallets(userId: string, chainId?: ChainId) {

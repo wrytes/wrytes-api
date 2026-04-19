@@ -1,11 +1,8 @@
 import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { FiatCurrency, OffRampRouteStatus } from '@prisma/client';
-import { Decimal } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../core/database/prisma.service';
 import { SafeService } from '../../integrations/safe/safe.service';
-import { KrakenDeposit } from '../../integrations/kraken/kraken.deposit';
-import { KRAKEN_DEPOSIT_ASSET, KRAKEN_DEPOSIT_METHOD_HINT } from '../../core/offramp/offramp.queue';
 
 export class CreateRouteDto {
   @IsString()
@@ -16,20 +13,12 @@ export class CreateRouteDto {
 
   @IsString()
   bankAccountId!: string;
-
-  @IsOptional()
-  @IsString()
-  minTriggerAmount?: string;
 }
 
 export class UpdateRouteDto {
   @IsOptional()
   @IsString()
   label?: string;
-
-  @IsOptional()
-  @IsString()
-  minTriggerAmount?: string;
 }
 
 @Injectable()
@@ -37,20 +26,7 @@ export class OffRampRoutesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly safe: SafeService,
-    private readonly krakenDeposit: KrakenDeposit,
   ) {}
-
-  private async validateMinTriggerAmount(amount: string): Promise<void> {
-    for (const [symbol, asset] of Object.entries(KRAKEN_DEPOSIT_ASSET)) {
-      const hint = KRAKEN_DEPOSIT_METHOD_HINT[symbol];
-      const minimum = await this.krakenDeposit.getMethodMinimum('operator', asset, hint);
-      if (minimum && new Decimal(amount).lt(new Decimal(minimum))) {
-        throw new BadRequestException(
-          `minTriggerAmount (${amount}) is below Kraken's minimum deposit for ${symbol}: ${minimum}`,
-        );
-      }
-    }
-  }
 
   async create(userId: string, dto: CreateRouteDto) {
     const bankAccount = await this.prisma.bankAccount.findFirst({
@@ -69,9 +45,6 @@ export class OffRampRoutesService {
     });
     if (existing) throw new ConflictException(`Route with label "${dto.label}" already exists`);
 
-    if (dto.minTriggerAmount) await this.validateMinTriggerAmount(dto.minTriggerAmount);
-
-    // Auto-provision a dedicated Safe keyed to bankAccountId + currency (stable, label-independent).
     const safeWallet = await this.safe.getOrCreate(userId, 1, `offramp:${dto.bankAccountId}:${dto.targetCurrency}`);
 
     const route = await this.prisma.offRampRoute.create({
@@ -81,7 +54,6 @@ export class OffRampRoutesService {
         safeWalletId: safeWallet.id,
         targetCurrency: dto.targetCurrency,
         bankAccountId: dto.bankAccountId,
-        minTriggerAmount: dto.minTriggerAmount ? new Decimal(dto.minTriggerAmount) : new Decimal(0),
       },
       include: { safeWallet: true, bankAccount: { select: { currency: true, label: true } } },
     });
@@ -144,18 +116,12 @@ export class OffRampRoutesService {
       if (conflict) throw new ConflictException(`Route with label "${dto.label}" already exists`);
     }
 
-    if (dto.minTriggerAmount !== undefined) await this.validateMinTriggerAmount(dto.minTriggerAmount);
-
     return this.prisma.offRampRoute.update({
       where: { id },
-      data: {
-        ...(dto.label !== undefined && { label: dto.label }),
-        ...(dto.minTriggerAmount !== undefined && { minTriggerAmount: new Decimal(dto.minTriggerAmount) }),
-      },
+      data: { ...(dto.label !== undefined && { label: dto.label }) },
     });
   }
 
-  // Internal: find active route for a given Safe address + chain
   async findActiveForSafe(safeAddress: string) {
     return this.prisma.offRampRoute.findFirst({
       where: {
@@ -169,13 +135,11 @@ export class OffRampRoutesService {
     });
   }
 
-  // Internal: list all active routes with their Safe addresses (for monitor)
-  async listActiveSafeAddresses(): Promise<{ routeId: string; address: string; minTriggerAmount: Decimal; targetCurrency: FiatCurrency }[]> {
+  async listActiveSafeAddresses(): Promise<{ routeId: string; address: string; targetCurrency: FiatCurrency }[]> {
     const routes = await this.prisma.offRampRoute.findMany({
       where: { status: OffRampRouteStatus.ACTIVE },
       select: {
         id: true,
-        minTriggerAmount: true,
         targetCurrency: true,
         safeWallet: { select: { address: true } },
       },
@@ -183,7 +147,6 @@ export class OffRampRoutesService {
     return routes.map((r) => ({
       routeId: r.id,
       address: r.safeWallet.address,
-      minTriggerAmount: r.minTriggerAmount,
       targetCurrency: r.targetCurrency,
     }));
   }

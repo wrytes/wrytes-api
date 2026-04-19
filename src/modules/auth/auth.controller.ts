@@ -2,8 +2,10 @@ import {
 	Controller,
 	Get,
 	Post,
+	Patch,
 	Body,
 	Query,
+	Param,
 	HttpCode,
 	HttpStatus,
 } from '@nestjs/common';
@@ -13,6 +15,7 @@ import {
 	ApiResponse,
 	ApiQuery,
 	ApiBody,
+	ApiParam,
 	ApiSecurity,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -153,5 +156,31 @@ export class AuthController {
 	) {
 		await this.authService.revokeApiKey(user.id, keyId);
 		return { message: 'API key revoked successfully' };
+	}
+
+	@Patch('keys/:keyId/label')
+	@HttpCode(HttpStatus.OK)
+	@ApiSecurity('api-key')
+	@ApiOperation({ summary: 'Update API key label' })
+	@ApiParam({ name: 'keyId', description: 'API key ID', example: 'cm9kid789' })
+	@ApiBody({
+		schema: {
+			type: 'object',
+			properties: { label: { type: 'string', nullable: true, example: 'Production server' } },
+			example: { label: 'Production server' },
+		},
+	})
+	@ApiResponse({
+		status: 200,
+		schema: { example: { message: 'Label updated' } },
+	})
+	@ApiResponse({ status: 404, description: 'API key not found' })
+	async updateApiKeyLabel(
+		@CurrentUser() user: User,
+		@Param('keyId') keyId: string,
+		@Body('label') label: string | null,
+	) {
+		await this.authService.updateApiKeyLabel(user.id, keyId, label ?? null);
+		return { message: 'Label updated' };
 	}
 }

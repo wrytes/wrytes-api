@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { FiatCurrency } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
 import { EncryptionService } from '../../common/encryption/encryption.service';
@@ -11,19 +11,12 @@ export class CreateBankAccountDto {
   @IsString()
   bic!: string;
 
-  @IsString()
-  holderName!: string;
-
   @IsEnum(FiatCurrency)
   currency!: FiatCurrency;
 
   @IsOptional()
   @IsString()
   label?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isDefault?: boolean;
 }
 
 export class UpdateBankAccountDto {
@@ -33,15 +26,7 @@ export class UpdateBankAccountDto {
 
   @IsOptional()
   @IsString()
-  holderName?: string;
-
-  @IsOptional()
-  @IsString()
   label?: string;
-
-  @IsOptional()
-  @IsBoolean()
-  isDefault?: boolean;
 }
 
 @Injectable()
@@ -59,20 +44,14 @@ export class BankAccountsService {
     });
     if (existing) throw new ConflictException(`Bank account with label "${label}" already exists`);
 
-    if (dto.isDefault) {
-      await this.clearDefault(userId);
-    }
-
     const iban = this.encryption.encrypt(dto.iban.replace(/\s/g, '').toUpperCase());
     return this.prisma.bankAccount.create({
       data: {
         userId,
         iban,
         bic: dto.bic.toUpperCase(),
-        holderName: dto.holderName,
         currency: dto.currency,
         label,
-        isDefault: dto.isDefault ?? false,
       },
     });
   }
@@ -80,7 +59,7 @@ export class BankAccountsService {
   async list(userId: string) {
     const accounts = await this.prisma.bankAccount.findMany({
       where: { userId },
-      orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+      orderBy: { createdAt: 'asc' },
     });
     return accounts.map((a) => ({ ...a, iban: this.maskIban(this.encryption.decrypt(a.iban)) }));
   }
@@ -94,10 +73,6 @@ export class BankAccountsService {
   async update(id: string, userId: string, dto: UpdateBankAccountDto) {
     const account = await this.prisma.bankAccount.findFirst({ where: { id, userId } });
     if (!account) throw new NotFoundException('Bank account not found');
-
-    if (dto.isDefault) {
-      await this.clearDefault(userId);
-    }
 
     return this.prisma.bankAccount.update({
       where: { id },
@@ -113,20 +88,6 @@ export class BankAccountsService {
     if (inUse) throw new ConflictException('Bank account is linked to an active route and cannot be deleted');
 
     await this.prisma.bankAccount.delete({ where: { id } });
-  }
-
-  async setDefault(id: string, userId: string) {
-    const account = await this.prisma.bankAccount.findFirst({ where: { id, userId } });
-    if (!account) throw new NotFoundException('Bank account not found');
-    await this.clearDefault(userId);
-    return this.prisma.bankAccount.update({ where: { id }, data: { isDefault: true } });
-  }
-
-  private async clearDefault(userId: string) {
-    await this.prisma.bankAccount.updateMany({
-      where: { userId, isDefault: true },
-      data: { isDefault: false },
-    });
   }
 
   private maskIban(iban: string): string {

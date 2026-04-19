@@ -39,6 +39,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UserProfileModule } from './modules/user-profile/user-profile.module';
 import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { OffRampRoutesModule } from './modules/offramp-routes/offramp-routes.module';
+import { AdminSettingsModule } from './modules/admin-settings/admin-settings.module';
 import { OffRampExecutionsModule } from './modules/offramp-executions/offramp-executions.module';
 import { UserWalletsModule } from './modules/user-wallets/user-wallets.module';
 
@@ -124,6 +125,7 @@ import { AppService } from './app.service';
     UserProfileModule,
     BankAccountsModule,
     OffRampRoutesModule,
+    AdminSettingsModule,
     OffRampExecutionsModule,
     OffRampCoreModule,
     WalletModule,

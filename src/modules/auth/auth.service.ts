@@ -97,12 +97,19 @@ export class AuthService {
       select: {
         id: true,
         keyId: true,
+        label: true,
         expiresAt: true,
         lastUsedAt: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'desc' },
     });
+  }
+
+  async updateApiKeyLabel(userId: string, keyId: string, label: string | null): Promise<void> {
+    const apiKey = await this.prisma.apiKey.findFirst({ where: { userId, keyId, revokedAt: null } });
+    if (!apiKey) throw new NotFoundException('API key not found');
+    await this.prisma.apiKey.update({ where: { id: apiKey.id }, data: { label } });
   }
 
   async getOrCreateUser(
