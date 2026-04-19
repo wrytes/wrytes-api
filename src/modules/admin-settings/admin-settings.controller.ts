@@ -1,6 +1,6 @@
-import { Controller, Get, Put, Body, Param, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, HttpCode, HttpStatus, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiBody } from '@nestjs/swagger';
-import { AdminSettingsService, UpdateTokenMinDto } from './admin-settings.service';
+import { AdminSettingsService, UpdateTokenMinDto, CreateTokenMinDto } from './admin-settings.service';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
 
@@ -26,6 +26,25 @@ export class AdminSettingsController {
   })
   list() {
     return this.service.list();
+  }
+
+  @Post('token-minimums')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Add a new token minimum amount' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['symbol', 'minAmount'],
+      properties: {
+        symbol: { type: 'string', example: 'ETH' },
+        minAmount: { type: 'string', example: '0.001' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201 })
+  @ApiResponse({ status: 409, description: 'Symbol already exists' })
+  addToken(@Body() dto: CreateTokenMinDto) {
+    return this.service.create(dto.symbol.toUpperCase(), dto.minAmount);
   }
 
   @Put('token-minimums/:symbol')
