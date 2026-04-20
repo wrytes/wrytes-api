@@ -31,11 +31,15 @@ interface GraphEdge {
   source: PriceSourceId;
   fetchedAt: Date;
   protocols?: string[];
+  synthetic: boolean;
 }
+
+const MAX_EDGE_AGE_MS = 12 * 60 * 60 * 1000;
 
 /**
  * Directed weighted graph of exchange rates.
  * Each edge A→B means "1 A = value B". Inverse edges are stored automatically.
+ * Direct quotes always take precedence over synthetic inverses.
  * Use `resolve()` to find the price of any token in any currency via BFS.
  */
 export class RateGraph {
@@ -43,15 +47,18 @@ export class RateGraph {
 
   add(from: string, to: string, value: number, source: PriceSourceId, fetchedAt = new Date(), protocols?: string[]): void {
     if (!isFinite(value) || value <= 0) return;
-    this.setEdge(from, to, value, source, fetchedAt, protocols);
-    this.setEdge(to, from, 1 / value, source, fetchedAt, protocols);
+    this.setEdge(from, to, value, source, fetchedAt, protocols, false);
+    this.setEdge(to, from, 1 / value, source, fetchedAt, protocols, true);
   }
 
-  private setEdge(from: string, to: string, value: number, source: PriceSourceId, fetchedAt: Date, protocols?: string[]): void {
+  private setEdge(from: string, to: string, value: number, source: PriceSourceId, fetchedAt: Date, protocols: string[] | undefined, synthetic: boolean): void {
     if (!this.edges.has(from)) this.edges.set(from, new Map());
     const existing = this.edges.get(from)!.get(to);
-    if (!existing || fetchedAt >= existing.fetchedAt) {
-      this.edges.get(from)!.set(to, { value, source, fetchedAt, protocols });
+    // Real quote always beats synthetic inverse; among same kind, prefer newer
+    if (!existing
+      || (!synthetic && existing.synthetic)
+      || (synthetic === existing.synthetic && fetchedAt >= existing.fetchedAt)) {
+      this.edges.get(from)!.set(to, { value, source, fetchedAt, protocols, synthetic });
     }
   }
 
@@ -84,46 +91,23 @@ export class RateGraph {
   }
 
   /**
-   * Returns the shortest tradeable path between two nodes via BFS,
+   * Returns the best-priced tradeable path between two nodes,
    * only traversing edges from actual trading venues (ROUTING_SOURCES).
    */
   resolveWithPath(from: string, to: string, maxDepth = 4): Route | null {
     if (from === to) return { rate: 1, legs: [] };
-
-    const queue: Array<{ node: string; rate: number; hops: RouteHop[] }> = [
-      { node: from, rate: 1, hops: [] },
-    ];
-    const visited = new Set<string>([from]);
-
-    while (queue.length > 0) {
-      const { node, rate, hops } = queue.shift()!;
-      if (hops.length >= maxDepth) continue;
-
-      const neighbors = this.edges.get(node);
-      if (!neighbors) continue;
-
-      for (const [neighbor, edge] of neighbors) {
-        if (!ROUTING_SOURCES.includes(edge.source)) continue;
-        const newRate = rate * edge.value;
-        const newHops: RouteHop[] = [...hops, { from: node, to: neighbor, source: edge.source, protocols: edge.protocols }];
-        if (neighbor === to) return { rate: newRate, legs: this.collapseToLegs(newHops) };
-        if (!visited.has(neighbor)) {
-          visited.add(neighbor);
-          queue.push({ node: neighbor, rate: newRate, hops: newHops });
-        }
-      }
-    }
-
-    return null;
+    return this.findAllRoutes(from, to, maxDepth)[0] ?? null;
   }
 
   /**
    * Finds all simple tradeable paths between two nodes via DFS,
    * only traversing edges from actual trading venues (ROUTING_SOURCES).
+   * Skips edges older than 12 hours.
    * Consecutive same-source hops are collapsed into a single transaction leg.
    */
   findAllRoutes(from: string, to: string, maxDepth = 4): Route[] {
     const routes: Route[] = [];
+    const now = Date.now();
 
     const dfs = (node: string, visited: Set<string>, hops: RouteHop[], rate: number) => {
       if (node === to) {
@@ -137,6 +121,7 @@ export class RateGraph {
 
       for (const [neighbor, edge] of neighbors) {
         if (!ROUTING_SOURCES.includes(edge.source)) continue;
+        if (now - edge.fetchedAt.getTime() > MAX_EDGE_AGE_MS) continue;
         if (visited.has(neighbor)) continue;
 
         visited.add(neighbor);

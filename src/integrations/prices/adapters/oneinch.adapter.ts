@@ -33,6 +33,7 @@ export class OneInchPriceAdapter implements PriceAdapter {
     const rates: Rate[] = [];
 
     for (const { from, to } of ONEINCH_PAIRS) {
+      await new Promise((r) => setTimeout(r, 200));
       try {
         const srcToken = ENABLED_TOKENS.find((t) => t.symbol === from);
         const dstToken = ENABLED_TOKENS.find((t) => t.symbol === to);
