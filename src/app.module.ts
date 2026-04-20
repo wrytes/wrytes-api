@@ -94,6 +94,7 @@ import { AppService } from './app.service';
               }
             : undefined,
         level: process.env.LOG_LEVEL || 'info',
+        autoLogging: false,
       },
     }),
 

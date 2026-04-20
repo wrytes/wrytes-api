@@ -391,6 +391,8 @@ model Invoice {
 
   safeAddress String?
   paidTxHash  String?
+  processingStartedAt DateTime?
+
   paidAt      DateTime?
   error       String?
 

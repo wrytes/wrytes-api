@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { InvoiceStatus } from '@prisma/client';
@@ -8,6 +8,8 @@ import { INVOICES_QUEUE, InvoiceJobData } from './invoices.queue';
 import type { InvoiceResponseDto } from './dto/invoice-response.dto';
 
 const INVOICE_CHAIN_ID = 1;
+const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
+const RESCUE_INTERVAL_MS = 60 * 1000; // check every minute
 const INVOICE_SAFE_LABEL = 'invoices';
 const ALLOWED_MIME_TYPES = [
   'application/pdf',
@@ -19,12 +21,37 @@ const ALLOWED_MIME_TYPES = [
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
 
 @Injectable()
-export class InvoicesService {
+export class InvoicesService implements OnModuleInit {
+  private readonly logger = new Logger(InvoicesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly safe: SafeService,
     @InjectQueue(INVOICES_QUEUE) private readonly queue: Queue<InvoiceJobData>,
   ) {}
+
+  onModuleInit() {
+    void this.rescueStuckInvoices();
+    setInterval(() => void this.rescueStuckInvoices(), RESCUE_INTERVAL_MS);
+  }
+
+  private async rescueStuckInvoices(): Promise<void> {
+    const threshold = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS);
+    const stuck = await this.prisma.invoice.findMany({
+      where: { status: InvoiceStatus.PROCESSING, processingStartedAt: { lt: threshold } },
+      select: { id: true },
+    });
+    if (stuck.length === 0) return;
+
+    this.logger.warn(`Rescuing ${stuck.length} stuck invoice(s)`);
+    for (const { id } of stuck) {
+      await this.prisma.invoice.update({
+        where: { id },
+        data: { status: InvoiceStatus.PENDING, processingStartedAt: null },
+      });
+      await this.queue.add(INVOICES_QUEUE, { invoiceId: id });
+    }
+  }
 
   async upload(userId: string, file: Express.Multer.File): Promise<InvoiceResponseDto> {
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
