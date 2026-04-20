@@ -30,7 +30,10 @@ export class InvoicesProcessor extends WorkerHost {
 
 		await this.prisma.invoice.update({
 			where: { id: invoiceId },
-			data: { status: InvoiceStatus.PROCESSING, processingStartedAt: new Date() },
+			data: {
+				status: InvoiceStatus.PROCESSING,
+				processingStartedAt: new Date(),
+			},
 		});
 
 		try {
@@ -76,7 +79,11 @@ export class InvoicesProcessor extends WorkerHost {
 				);
 				await this.prisma.invoice.update({
 					where: { id: invoiceId },
-					data: { status: InvoiceStatus.FAILED, processingStartedAt: null, error },
+					data: {
+						status: InvoiceStatus.FAILED,
+						processingStartedAt: null,
+						error,
+					},
 				});
 			} else {
 				this.logger.warn(
