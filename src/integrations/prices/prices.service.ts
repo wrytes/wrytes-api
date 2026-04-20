@@ -5,7 +5,7 @@ import { KrakenPriceAdapter } from './adapters/kraken.adapter';
 import { DefiLlamaPriceAdapter } from './adapters/defillama.adapter';
 import { OneInchPriceAdapter } from './adapters/oneinch.adapter';
 import { RateGraph } from './prices.graph';
-import { TOKEN_SLUGS, ETH_WETH_ALIAS, PEG_CONFIG } from '../../config/tokens.config';
+import { TOKEN_SLUGS, ETH_WETH_ALIAS, PEG_CONFIG, resolveSymbol } from '../../config/tokens.config';
 import type { ResolvedPrice } from './prices.types';
 
 const CURRENCIES = ['USD', 'CHF', 'EUR'] as const;
@@ -161,15 +161,15 @@ export class PricesService implements OnModuleInit {
 	}
 
 	resolveRate(from: string, to: string) {
-		const f = from.toUpperCase();
-		const t = to.toUpperCase();
+		const f = resolveSymbol(from);
+		const t = resolveSymbol(to);
 		const result = this.graph.resolveWithPath(f, t);
 		return { from: f, to: t, rate: result?.rate ?? null, legs: result?.legs ?? null };
 	}
 
 	findRoutes(from: string, to: string) {
-		const f = from.toUpperCase();
-		const t = to.toUpperCase();
+		const f = resolveSymbol(from);
+		const t = resolveSymbol(to);
 		return this.graph.findAllRoutes(f, t);
 	}
 

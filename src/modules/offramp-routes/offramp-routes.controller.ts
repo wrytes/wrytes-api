@@ -24,18 +24,15 @@ export class OffRampRoutesController {
     schema: {
       example: [
         {
-          id: 'cm9rte001abc',
-          userId: 'cm9usr789ghi012',
+          id: 'cm9rt001abc',
           label: 'monthly-salary',
           targetCurrency: 'CHF',
           bankAccountId: 'cm9ba001abc',
-          minTriggerAmount: '50',
           status: 'ACTIVE',
-          depositAddress: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
-          safeWallet: { address: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12', deployed: true },
+          depositAddress: '0xSafeWalletAddress',
+          safeWallet: { address: '0xSafeWalletAddress', deployed: true },
           bankAccount: { currency: 'CHF', label: 'main' },
-          createdAt: '2026-02-01T08:00:00.000Z',
-          updatedAt: '2026-02-01T08:00:00.000Z',
+          createdAt: '2026-01-15T09:00:00.000Z',
         },
       ],
     },
@@ -46,23 +43,20 @@ export class OffRampRoutesController {
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single route with deposit address' })
-  @ApiParam({ name: 'id', example: 'cm9rte001abc' })
+  @ApiParam({ name: 'id' })
   @ApiResponse({
     status: 200,
     schema: {
       example: {
-        id: 'cm9rte001abc',
-        userId: 'cm9usr789ghi012',
+        id: 'cm9rt001abc',
         label: 'monthly-salary',
         targetCurrency: 'CHF',
         bankAccountId: 'cm9ba001abc',
-        minTriggerAmount: '50',
         status: 'ACTIVE',
-        depositAddress: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
-        safeWallet: { address: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12', deployed: true, chainId: 1 },
+        depositAddress: '0xSafeWalletAddress',
+        safeWallet: { address: '0xSafeWalletAddress', deployed: true, chainId: 1 },
         bankAccount: { currency: 'CHF', label: 'main' },
-        createdAt: '2026-02-01T08:00:00.000Z',
-        updatedAt: '2026-02-01T08:00:00.000Z',
+        createdAt: '2026-01-15T09:00:00.000Z',
       },
     },
   })
@@ -74,7 +68,7 @@ export class OffRampRoutesController {
   @Post()
   @ApiOperation({
     summary: 'Create an off-ramp route',
-    description: 'Automatically provisions a dedicated Safe wallet. The returned `depositAddress` is where the member sends crypto.',
+    description: 'Automatically provisions a dedicated Safe wallet. The returned `depositAddress` is where the user sends crypto.',
   })
   @ApiBody({
     schema: {
@@ -84,36 +78,12 @@ export class OffRampRoutesController {
         label: { type: 'string', example: 'monthly-salary' },
         targetCurrency: { type: 'string', enum: ['CHF', 'EUR'], example: 'CHF' },
         bankAccountId: { type: 'string', example: 'cm9ba001abc' },
-        minTriggerAmount: { type: 'string', example: '50', description: 'Minimum token amount (in USD equivalent) to trigger execution. Defaults to 0.' },
-      },
-      example: {
-        label: 'monthly-salary',
-        targetCurrency: 'CHF',
-        bankAccountId: 'cm9ba001abc',
-        minTriggerAmount: '50',
       },
     },
   })
-  @ApiResponse({
-    status: 201,
-    description: 'Route created with deposit address',
-    schema: {
-      example: {
-        id: 'cm9rte001abc',
-        userId: 'cm9usr789ghi012',
-        label: 'monthly-salary',
-        targetCurrency: 'CHF',
-        bankAccountId: 'cm9ba001abc',
-        minTriggerAmount: '50',
-        status: 'ACTIVE',
-        depositAddress: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12',
-        safeWallet: { address: '0xAbCdEf1234567890AbCdEf1234567890AbCdEf12', deployed: false },
-        bankAccount: { currency: 'CHF', label: 'main' },
-        createdAt: '2026-04-05T10:00:00.000Z',
-        updatedAt: '2026-04-05T10:00:00.000Z',
-      },
-    },
-  })
+  @ApiResponse({ status: 201, description: 'Route created with a provisioned Safe wallet deposit address' })
+  @ApiResponse({ status: 400, description: 'Bank account currency does not match targetCurrency' })
+  @ApiResponse({ status: 404, description: 'Bank account not found' })
   @ApiResponse({ status: 409, description: 'Label already in use' })
   create(@CurrentUser() user: User, @Body() dto: CreateRouteDto) {
     return this.service.create(user.id, dto);
@@ -121,9 +91,11 @@ export class OffRampRoutesController {
 
   @Patch(':id/pause')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Pause an active route (stops monitoring)' })
+  @ApiOperation({ summary: 'Pause an active route' })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, description: 'Route paused' })
   @ApiResponse({ status: 400, description: 'Route is already paused' })
+  @ApiResponse({ status: 404, description: 'Route not found' })
   pause(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.pause(id, user.id);
   }
@@ -132,7 +104,9 @@ export class OffRampRoutesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Activate a paused route' })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, description: 'Route activated' })
   @ApiResponse({ status: 400, description: 'Route is already active' })
+  @ApiResponse({ status: 404, description: 'Route not found' })
   activate(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.activate(id, user.id);
   }
@@ -140,8 +114,12 @@ export class OffRampRoutesController {
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
   @RequireScopes('ADMIN')
-  @ApiOperation({ summary: 'Delete a route (admin only)' })
+  @ApiOperation({
+    summary: 'Delete a route (admin only)',
+    description: 'Requires the ADMIN scope. Permanently removes the route and stops monitoring its deposit address.',
+  })
   @ApiParam({ name: 'id' })
+  @ApiResponse({ status: 200, description: 'Route deleted' })
   @ApiResponse({ status: 404, description: 'Route not found' })
   delete(@Param('id') id: string) {
     return this.service.delete(id);
@@ -149,17 +127,16 @@ export class OffRampRoutesController {
 
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update route label and/or minimum trigger amount' })
-  @ApiParam({ name: 'id', example: 'cm9rte001abc' })
+  @ApiOperation({ summary: 'Update route label' })
+  @ApiParam({ name: 'id' })
   @ApiBody({
     schema: {
       type: 'object',
-      properties: {
-        label: { type: 'string', example: 'quarterly-bonus' },
-        minTriggerAmount: { type: 'string', example: '100' },
-      },
+      properties: { label: { type: 'string', example: 'quarterly-bonus' } },
     },
   })
+  @ApiResponse({ status: 200, description: 'Route updated' })
+  @ApiResponse({ status: 404, description: 'Route not found' })
   @ApiResponse({ status: 409, description: 'Label already in use' })
   update(@CurrentUser() user: User, @Param('id') id: string, @Body() dto: UpdateRouteDto) {
     return this.service.update(id, user.id, dto);

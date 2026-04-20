@@ -23,8 +23,10 @@ export const validationSchema = Joi.object({
 	REDIS_PORT: Joi.number().default(6379),
 	REDIS_PASSWORD: Joi.string().allow('').optional(),
 
-	// AI
-	ANTHROPIC_API_KEY: Joi.string().allow('').optional(),
+	// AI (OpenAI-compatible — defaults to local Ollama)
+	OPENAI_API_KEY:  Joi.string().allow('').optional(),
+	OPENAI_BASE_URL: Joi.string().uri().optional(),
+	OPENAI_MODEL:    Joi.string().optional(),
 
 	// Telegram
 	TELEGRAM_BOT_TOKEN: Joi.string().allow('').optional(),

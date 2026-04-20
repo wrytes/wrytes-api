@@ -108,6 +108,18 @@ export const PEG_CONFIG: PegEntry[] = [
 // Helpers
 // ---------------------------------------------------------------------------
 
+const FIAT_SYMBOLS = new Set(['USD', 'CHF', 'EUR']);
+
+/** Case-insensitive lookup returning the canonical symbol (e.g. "cbbtc" → "cbBTC"). */
+export function resolveSymbol(input: string): string {
+  const lower = input.toLowerCase();
+  const token = ENABLED_TOKENS.find((t) => t.symbol.toLowerCase() === lower);
+  if (token) return token.symbol;
+  const upper = input.toUpperCase();
+  if (FIAT_SYMBOLS.has(upper)) return upper;
+  return upper; // unknown symbol — best-effort uppercase
+}
+
 export function getTokenByAddress(address: Address, chainId: number): EnabledToken | undefined {
   return ENABLED_TOKENS.find(
     (token) => token.addresses[chainId]?.toLowerCase() === address.toLowerCase(),

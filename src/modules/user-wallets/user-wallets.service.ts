@@ -405,4 +405,13 @@ export class UserWalletsService {
       data: { isActive: false },
     });
   }
+
+  async updateWalletLabel(userId: string, address: string, label: string | null): Promise<void> {
+    const checksumAddress = this.checksum(address);
+    const wallet = await this.prisma.userWallet.findFirst({
+      where: { userId, address: checksumAddress, isActive: true },
+    });
+    if (!wallet) throw new NotFoundException('Wallet not found');
+    await this.prisma.userWallet.update({ where: { id: wallet.id }, data: { label } });
+  }
 }

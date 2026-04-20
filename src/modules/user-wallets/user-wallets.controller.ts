@@ -6,6 +6,7 @@ import {
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
 } from '@nestjs/common';
 import {
@@ -159,5 +160,28 @@ export class UserWalletsController {
   async unlinkWallet(@CurrentUser() user: User, @Param('address') address: string) {
     await this.service.unlinkWallet(user.id, address);
     return { message: 'Wallet unlinked successfully' };
+  }
+
+  @Patch(':address/label')
+  @HttpCode(HttpStatus.OK)
+  @ApiSecurity('api-key')
+  @ApiOperation({ summary: 'Update wallet label' })
+  @ApiParam({ name: 'address', description: 'Wallet address' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { label: { type: 'string', nullable: true, example: 'Hot wallet' } },
+      example: { label: 'Hot wallet' },
+    },
+  })
+  @ApiResponse({ status: 200, schema: { example: { message: 'Label updated' } } })
+  @ApiResponse({ status: 404, description: 'Wallet not found' })
+  async updateWalletLabel(
+    @CurrentUser() user: User,
+    @Param('address') address: string,
+    @Body('label') label: string | null,
+  ) {
+    await this.service.updateWalletLabel(user.id, address, label ?? null);
+    return { message: 'Label updated' };
   }
 }

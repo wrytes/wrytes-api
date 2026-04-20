@@ -28,6 +28,7 @@ model User {
   offRampRoutes      OffRampRoute[]
   userWallets        UserWallet[]
   walletAuthSessions WalletAuthSession[]
+  invoices           Invoice[]
 }
 
 // ---------------------------------------------------------------------------
@@ -85,6 +86,7 @@ model ApiKey {
   userId     String
   keyId      String    @unique
   secretHash String
+  label      String?
   expiresAt  DateTime?
   revokedAt  DateTime?
   lastUsedAt DateTime?
@@ -141,10 +143,8 @@ model BankAccount {
   userId       String
   iban         String      // AES-256-GCM encrypted
   bic          String
-  holderName   String
   currency     FiatCurrency
   label        String      @default("default")
-  isDefault    Boolean     @default(false)
   createdAt    DateTime    @default(now())
   updatedAt    DateTime    @updatedAt
 
@@ -171,7 +171,6 @@ model OffRampRoute {
   safeWalletId     String             @unique
   targetCurrency   FiatCurrency
   bankAccountId    String
-  minTriggerAmount Decimal            @default(0) @db.Decimal(36, 18)
   status           OffRampRouteStatus @default(ACTIVE)
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
@@ -304,6 +303,16 @@ enum WalletAuthStatus {
 }
 
 // ---------------------------------------------------------------------------
+// Token minimum amounts (global, admin-editable)
+// ---------------------------------------------------------------------------
+
+model TokenMinAmount {
+  symbol    String   @id
+  minAmount Decimal  @default(0) @db.Decimal(36, 18)
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
 // Price rates and cache
 // ---------------------------------------------------------------------------
 
@@ -342,4 +351,56 @@ model AlchemyCache {
 
   @@unique([requestType, parameters])
   @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Invoices
+// ---------------------------------------------------------------------------
+
+enum InvoiceStatus {
+  PENDING
+  PROCESSING
+  EXTRACTED
+  AWAITING_PAYMENT
+  PAID
+  FAILED
+}
+
+model Invoice {
+  id          String        @id @default(cuid())
+  userId      String
+
+  fileName    String
+  fileType    String
+  fileData    Bytes
+
+  status      InvoiceStatus @default(PENDING)
+  fromName    String?
+  toName      String?
+  amount      Decimal?      @db.Decimal(36, 18)
+  currency    String?
+  reference   String?
+  itemTags    String[]
+
+  bankHolder   String?
+  bankStreet   String?
+  bankStreetNr String?
+  bankZip      String?
+  bankCity     String?
+  bankIban     String?
+
+  safeAddress String?
+  paidTxHash  String?
+  processingStartedAt DateTime?
+
+  paidAt      DateTime?
+  error       String?
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
 }

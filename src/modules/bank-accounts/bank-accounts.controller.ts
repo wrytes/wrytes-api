@@ -47,10 +47,8 @@ export class BankAccountsController {
 					userId: 'cm9usr789ghi012',
 					iban: 'CH56****5489',
 					bic: 'POFICHBEXXX',
-					holderName: 'Jane Doe',
 					currency: 'CHF',
 					label: 'main',
-					isDefault: true,
 					createdAt: '2026-01-15T09:00:00.000Z',
 					updatedAt: '2026-01-15T09:00:00.000Z',
 				},
@@ -66,31 +64,14 @@ export class BankAccountsController {
 	@ApiBody({
 		schema: {
 			type: 'object',
-			required: ['iban', 'bic', 'holderName', 'currency'],
+			required: ['iban', 'bic', 'currency'],
 			properties: {
 				iban: { type: 'string', example: 'CH5604835012345678009' },
 				bic: { type: 'string', example: 'POFICHBEXXX' },
-				holderName: { type: 'string', example: 'Jane Doe' },
-				currency: {
-					type: 'string',
-					enum: ['CHF', 'EUR'],
-					example: 'CHF',
-				},
-				label: {
-					type: 'string',
-					example: 'main',
-					description: 'Defaults to "default"',
-				},
-				isDefault: { type: 'boolean', example: true },
+				currency: { type: 'string', enum: ['CHF', 'EUR'], example: 'CHF' },
+				label: { type: 'string', example: 'main', description: 'Defaults to "default"' },
 			},
-			example: {
-				iban: 'CH5604835012345678009',
-				bic: 'POFICHBEXXX',
-				holderName: 'Jane Doe',
-				currency: 'CHF',
-				label: 'main',
-				isDefault: true,
-			},
+			example: { iban: 'CH5604835012345678009', bic: 'POFICHBEXXX', currency: 'CHF', label: 'main' },
 		},
 	})
 	@ApiResponse({
@@ -101,10 +82,8 @@ export class BankAccountsController {
 				userId: 'cm9usr789ghi012',
 				iban: 'CH56****8009',
 				bic: 'POFICHBEXXX',
-				holderName: 'Jane Doe',
 				currency: 'CHF',
 				label: 'main',
-				isDefault: true,
 				createdAt: '2026-04-05T10:00:00.000Z',
 				updatedAt: '2026-04-05T10:00:00.000Z',
 			},
@@ -123,11 +102,9 @@ export class BankAccountsController {
 			type: 'object',
 			properties: {
 				bic: { type: 'string', example: 'POFICHBEXXX' },
-				holderName: { type: 'string', example: 'Jane Doe' },
 				label: { type: 'string', example: 'savings' },
-				isDefault: { type: 'boolean', example: false },
 			},
-			example: { label: 'savings', isDefault: false },
+			example: { label: 'savings' },
 		},
 	})
 	@ApiResponse({ status: 200 })
@@ -142,22 +119,15 @@ export class BankAccountsController {
 
 	@Delete(':id')
 	@HttpCode(HttpStatus.NO_CONTENT)
-	@ApiOperation({ summary: 'Delete a bank account' })
+	@RequireScopes('ADMIN')
+	@ApiOperation({
+		summary: 'Delete a bank account (admin only)',
+		description: 'Requires the ADMIN scope. Deletes the bank account permanently. Fails if the account is linked to an active off-ramp route.',
+	})
 	@ApiParam({ name: 'id' })
 	@ApiResponse({ status: 204 })
-	@ApiResponse({
-		status: 409,
-		description: 'Account linked to an active route',
-	})
+	@ApiResponse({ status: 409, description: 'Account linked to an active route' })
 	async remove(@CurrentUser() user: User, @Param('id') id: string) {
 		await this.service.remove(id, user.id);
-	}
-
-	@Post(':id/default')
-	@HttpCode(HttpStatus.OK)
-	@ApiOperation({ summary: 'Set as default bank account' })
-	@ApiParam({ name: 'id' })
-	setDefault(@CurrentUser() user: User, @Param('id') id: string) {
-		return this.service.setDefault(id, user.id);
 	}
 }

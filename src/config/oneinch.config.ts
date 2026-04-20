@@ -21,5 +21,8 @@ export interface OneInchPair {
 const mainnetTokens = ENABLED_TOKENS.filter((t) => t.addresses[1]);
 
 export const ONEINCH_PAIRS: OneInchPair[] = mainnetTokens.flatMap((token, i) =>
-  mainnetTokens.slice(i + 1).map((other) => ({ from: token.symbol, to: other.symbol })),
+  mainnetTokens.slice(i + 1).flatMap((other) => [
+    { from: token.symbol, to: other.symbol },
+    { from: other.symbol, to: token.symbol },
+  ]),
 );
