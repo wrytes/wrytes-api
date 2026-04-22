@@ -27,8 +27,12 @@ model User {
   bankAccounts       BankAccount[]
   offRampRoutes      OffRampRoute[]
   userWallets        UserWallet[]
-  walletAuthSessions WalletAuthSession[]
-  invoices           Invoice[]
+  walletAuthSessions   WalletAuthSession[]
+  invoices             Invoice[]
+  accountingAddresses      AccountingAddress[]
+  accountingBlacklist      AccountingBlacklist[]
+  accountingAccounts       AccountingAccount[]
+  classificationTemplates  ClassificationTemplate[]
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +355,181 @@ model AlchemyCache {
 
   @@unique([requestType, parameters])
   @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Accounting
+// ---------------------------------------------------------------------------
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum NormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum JournalLineType {
+  DEBIT
+  CREDIT
+}
+
+enum TransferClassification {
+  ASSET
+  LIABILITY
+  SWAP_IN
+  SWAP_OUT
+  PAYMENT
+  RECEIVED
+  TRANSFER
+  SKIPPED
+  UNCLASSIFIED
+}
+
+model AccountingAddress {
+  id           String    @id @default(cuid())
+  userId       String
+  address      String
+  label        String?
+  chain        String    // Alchemy chain slug, e.g. "eth-mainnet"
+  chainId      Int
+  lastSyncedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transfers AccountingTransfer[]
+
+  @@unique([userId, address, chainId])
+  @@index([userId])
+  @@map("accounting_addresses")
+}
+
+model AccountingTransfer {
+  id                  String                 @id @default(cuid())
+  accountingAddressId String
+  chainId             Int
+  txHash              String
+  alchemyUniqueId     String                 // e.g. "<txHash>:log:<logIndex>"
+  blockNum            String                 // hex string from Alchemy
+  blockNumber         Int?                   // parsed integer for sorting
+  logIndex            Int?                   // parsed from alchemyUniqueId for intra-block ordering
+  timestamp           DateTime?
+  direction           String                 // "IN" | "OUT"
+  tokenAddress        String?
+  tokenSymbol         String?
+  tokenDecimals       Int?
+  tokenType           String                 // "erc20", "external", etc.
+  amountRaw           String?
+  amountFormatted     String?
+  fromAddress         String
+  toAddress           String?
+  classification      TransferClassification @default(UNCLASSIFIED)
+  isHidden            Boolean                @default(false)
+  chfValue            String?                // manually entered CHF equivalent
+  notes               String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  accountingAddress AccountingAddress @relation(fields: [accountingAddressId], references: [id], onDelete: Cascade)
+  journalEntry      JournalEntry?
+
+  @@unique([accountingAddressId, alchemyUniqueId])
+  @@index([accountingAddressId])
+  @@index([classification])
+  @@map("accounting_transfers")
+}
+
+model AccountingBlacklist {
+  id            String   @id @default(cuid())
+  tokenAddress  String
+  chainId       Int
+  tokenSymbol   String?
+  reason        String?
+  addedByUserId String
+  createdAt     DateTime @default(now())
+
+  addedBy User @relation(fields: [addedByUserId], references: [id])
+
+  @@unique([tokenAddress, chainId])
+  @@map("accounting_blacklist")
+}
+
+model AccountingAccount {
+  id            String        @id @default(cuid())
+  userId        String
+  name          String
+  code          String?
+  type          AccountType
+  normalBalance NormalBalance
+  description   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  user              User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  journalLines      JournalLine[]
+  debitTemplates    ClassificationTemplate[] @relation("TemplateDebit")
+  creditTemplates   ClassificationTemplate[] @relation("TemplateCredit")
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("accounting_accounts")
+}
+
+model JournalEntry {
+  id          String   @id @default(cuid())
+  transferId  String   @unique
+  date        DateTime
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transfer AccountingTransfer @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  lines    JournalLine[]
+
+  @@map("journal_entries")
+}
+
+model JournalLine {
+  id             String          @id @default(cuid())
+  journalEntryId String
+  accountId      String
+  type           JournalLineType
+  amount         String
+  chfAmount      String?
+  tokenSymbol    String?
+  createdAt      DateTime        @default(now())
+
+  journalEntry JournalEntry      @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      AccountingAccount @relation(fields: [accountId], references: [id])
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_lines")
+}
+
+model ClassificationTemplate {
+  id             String                 @id @default(cuid())
+  userId         String
+  classification TransferClassification
+  direction      String                 @default("ANY") // "IN" | "OUT" | "ANY"
+  debitAccountId  String
+  creditAccountId String
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  debitAccount  AccountingAccount @relation("TemplateDebit",  fields: [debitAccountId],  references: [id])
+  creditAccount AccountingAccount @relation("TemplateCredit", fields: [creditAccountId], references: [id])
+
+  @@unique([userId, classification, direction])
+  @@index([userId])
+  @@map("classification_templates")
 }
 
 // ---------------------------------------------------------------------------

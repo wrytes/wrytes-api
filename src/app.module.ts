@@ -43,6 +43,7 @@ import { AdminSettingsModule } from './modules/admin-settings/admin-settings.mod
 import { OffRampExecutionsModule } from './modules/offramp-executions/offramp-executions.module';
 import { UserWalletsModule } from './modules/user-wallets/user-wallets.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
 
 // Core modules
 import { OffRampCoreModule } from './core/offramp/offramp-core.module';
@@ -135,6 +136,7 @@ import { AppService } from './app.service';
     UserWalletsModule,
     EventsModule,
     InvoicesModule,
+    AccountingModule,
   ],
   controllers: [AppController],
   providers: [
