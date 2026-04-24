@@ -29,10 +29,11 @@ model User {
   userWallets        UserWallet[]
   walletAuthSessions   WalletAuthSession[]
   invoices             Invoice[]
-  accountingAddresses      AccountingAddress[]
-  accountingBlacklist      AccountingBlacklist[]
-  accountingAccounts       AccountingAccount[]
-  classificationTemplates  ClassificationTemplate[]
+  accountingAddresses       AccountingAddress[]
+  accountingBlacklist       AccountingBlacklist[]
+  accountingAccounts        AccountingAccount[]
+  classificationTemplates   ClassificationTemplate[]
+  counterpartyLabels        AccountingCounterpartyLabel[]
 }
 
 // ---------------------------------------------------------------------------
@@ -380,6 +381,14 @@ enum JournalLineType {
 }
 
 enum TransferClassification {
+  // New classifications
+  CAPITAL
+  INCOME
+  LOAN
+  REPAYMENT
+  EXPENSE
+  NEUTRAL
+  // Existing (kept for backwards compat with accounting module)
   ASSET
   LIABILITY
   SWAP_IN
@@ -402,8 +411,10 @@ model AccountingAddress {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  transfers AccountingTransfer[]
+  user         User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transfers    AccountingTransfer[]
+  adjustments  AccountingAdjustment[]
+  tokenPrices  AccountingTokenPrice[]
 
   @@unique([userId, address, chainId])
   @@index([userId])
@@ -443,6 +454,55 @@ model AccountingTransfer {
   @@index([accountingAddressId])
   @@index([classification])
   @@map("accounting_transfers")
+}
+
+model AccountingCounterpartyLabel {
+  id        String   @id @default(cuid())
+  userId    String
+  address   String   // lowercase hex
+  label     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, address])
+  @@index([userId])
+  @@map("accounting_counterparty_labels")
+}
+
+model AccountingTokenPrice {
+  id                  String   @id @default(cuid())
+  accountingAddressId String
+  year                Int
+  tokenSymbol         String
+  priceChf            String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  accountingAddress AccountingAddress @relation(fields: [accountingAddressId], references: [id], onDelete: Cascade)
+
+  @@unique([accountingAddressId, year, tokenSymbol])
+  @@index([accountingAddressId])
+  @@map("accounting_token_prices")
+}
+
+model AccountingAdjustment {
+  id                  String   @id @default(cuid())
+  accountingAddressId String
+  date                DateTime @default(now())
+  type                String   // 'PROFIT' | 'LOSS' | 'CORRECTION'
+  tokenSymbol         String?
+  amount              String?
+  chfValue            String?
+  note                String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  accountingAddress AccountingAddress @relation(fields: [accountingAddressId], references: [id], onDelete: Cascade)
+
+  @@index([accountingAddressId])
+  @@map("accounting_adjustments")
 }
 
 model AccountingBlacklist {

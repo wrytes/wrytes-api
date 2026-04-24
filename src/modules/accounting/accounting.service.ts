@@ -86,6 +86,12 @@ export class AccountingService {
     });
   }
 
+  async updateAddress(userId: string, id: string, label: string | null) {
+    const row = await this.prisma.accountingAddress.findFirst({ where: { id, userId } });
+    if (!row) throw new NotFoundException('Address not found');
+    return this.prisma.accountingAddress.update({ where: { id }, data: { label: label ?? null } });
+  }
+
   async removeAddress(userId: string, id: string) {
     const row = await this.prisma.accountingAddress.findFirst({ where: { id, userId } });
     if (!row) throw new NotFoundException('Address not found');
@@ -124,6 +130,10 @@ export class AccountingService {
       const blockNumber = t.blockNum ? parseInt(t.blockNum, 16) : null;
       const logIndex = parseLogIndex(t.uniqueId);
 
+      const symbol = t.asset ?? null;
+      const amountFormatted = t.value !== null && t.value !== undefined ? String(t.value) : null;
+      const isZchf = symbol?.toUpperCase() === 'ZCHF';
+
       return {
         accountingAddressId: acct.id,
         chainId: acct.chainId,
@@ -135,14 +145,15 @@ export class AccountingService {
         timestamp: t.metadata?.blockTimestamp ? new Date(t.metadata.blockTimestamp) : null,
         direction: t.to?.toLowerCase() === addr ? 'IN' : 'OUT',
         tokenAddress: tokenAddr,
-        tokenSymbol: t.asset ?? null,
+        tokenSymbol: symbol,
         tokenDecimals,
         tokenType: t.category,
         amountRaw: t.rawContract.value ?? null,
-        amountFormatted: t.value !== null && t.value !== undefined ? String(t.value) : null,
+        amountFormatted,
         fromAddress: t.from.toLowerCase(),
         toAddress: t.to?.toLowerCase() ?? null,
         isHidden: tokenAddr ? blacklisted.has(tokenAddr) : false,
+        chfValue: isZchf ? amountFormatted : undefined,
       };
     });
 
@@ -169,6 +180,20 @@ export class AccountingService {
         });
       await this.prisma.$transaction(updates);
       this.logger.log(`Backfilled block/log indices for ${updates.length} transfers`);
+    }
+
+    // Backfill chfValue for existing ZCHF transfers that are missing it
+    const zchfMissingChf = await this.prisma.accountingTransfer.findMany({
+      where: { accountingAddressId: acct.id, tokenSymbol: { equals: 'ZCHF', mode: 'insensitive' }, chfValue: null },
+      select: { id: true, amountFormatted: true },
+    });
+    if (zchfMissingChf.length > 0) {
+      await this.prisma.$transaction(
+        zchfMissingChf
+          .filter(t => t.amountFormatted !== null)
+          .map(t => this.prisma.accountingTransfer.update({ where: { id: t.id }, data: { chfValue: t.amountFormatted } })),
+      );
+      this.logger.log(`Backfilled CHF value for ${zchfMissingChf.length} ZCHF transfers`);
     }
 
     await this.prisma.accountingAddress.update({
@@ -589,6 +614,183 @@ export class AccountingService {
   }
 
   // ---------------------------------------------------------------------------
+  // Token overview — per-token asset/liability/net + per-classification totals
+  // ---------------------------------------------------------------------------
+
+  async getTokenOverview(userId: string, addressId: string, year?: number, quarter?: number) {
+    const acct = await this.prisma.accountingAddress.findFirst({ where: { id: addressId, userId } });
+    if (!acct) throw new NotFoundException('Address not found');
+
+    // Overview always accumulates from the beginning up to the END of the selected period
+    let timestampFilter: { lt: Date } | undefined;
+    if (year && quarter) {
+      const endMonth = quarter * 3 + 1;
+      timestampFilter = {
+        lt: endMonth > 12
+          ? new Date(`${year + 1}-01-01T00:00:00.000Z`)
+          : new Date(`${year}-${String(endMonth).padStart(2, '0')}-01T00:00:00.000Z`),
+      };
+    } else if (year) {
+      timestampFilter = {
+        lt: new Date(`${year + 1}-01-01T00:00:00.000Z`),
+      };
+    }
+
+    const transfers = await this.prisma.accountingTransfer.findMany({
+      where: { accountingAddressId: addressId, isHidden: false, ...(timestampFilter ? { timestamp: timestampFilter } : {}) },
+      select: {
+        tokenSymbol: true,
+        tokenAddress: true,
+        direction: true,
+        amountFormatted: true,
+        classification: true,
+        chfValue: true,
+      },
+    });
+
+    // Classifications that affect assets (signed by direction)
+    const ASSET_EFFECT = new Set<TransferClassification>([
+      TransferClassification.CAPITAL,
+      TransferClassification.INCOME,
+      TransferClassification.LOAN,
+      TransferClassification.REPAYMENT,
+      TransferClassification.SWAP_IN,
+      TransferClassification.SWAP_OUT,
+      TransferClassification.EXPENSE,
+      TransferClassification.PAYMENT,
+      // legacy
+      TransferClassification.ASSET,
+      TransferClassification.RECEIVED,
+      TransferClassification.LIABILITY,
+    ]);
+
+    // Classifications that also affect liabilities (signed by direction)
+    const LIABILITY_EFFECT = new Set<TransferClassification>([
+      TransferClassification.LOAN,
+      TransferClassification.REPAYMENT,
+      // legacy
+      TransferClassification.LIABILITY,
+    ]);
+
+    // No accounting effect
+    const NO_EFFECT = new Set<TransferClassification>([
+      TransferClassification.NEUTRAL,
+      TransferClassification.SKIPPED,
+      TransferClassification.TRANSFER,
+    ]);
+
+    type TokenEntry = {
+      tokenSymbol: string | null;
+      tokenAddress: string | null;
+      asset: number;
+      liability: number;
+      chfAsset: number;
+      chfLiability: number;
+    };
+    type ClassEntry = { count: number; total: number; chfTotal: number };
+
+    const tokenMap = new Map<string, TokenEntry>();
+    const classMap = new Map<string, ClassEntry>();
+    let unclassifiedCount = 0;
+
+    for (const t of transfers) {
+      if (t.classification === TransferClassification.UNCLASSIFIED) {
+        unclassifiedCount++;
+        continue;
+      }
+      if (NO_EFFECT.has(t.classification)) continue;
+
+      const amount = parseFloat(t.amountFormatted ?? '0') || 0;
+      const chf = parseFloat(t.chfValue ?? '0') || 0;
+      const signedAmount = t.direction === 'IN' ? amount : -amount;
+      const signedChf = t.direction === 'IN' ? chf : -chf;
+
+      const tokenKey = `${t.tokenAddress ?? '__native__'}:${t.tokenSymbol ?? ''}`;
+      if (!tokenMap.has(tokenKey)) {
+        tokenMap.set(tokenKey, { tokenSymbol: t.tokenSymbol, tokenAddress: t.tokenAddress, asset: 0, liability: 0, chfAsset: 0, chfLiability: 0 });
+      }
+      const entry = tokenMap.get(tokenKey)!;
+
+      if (ASSET_EFFECT.has(t.classification)) {
+        entry.asset += signedAmount;
+        entry.chfAsset += signedChf;
+      }
+      if (LIABILITY_EFFECT.has(t.classification)) {
+        entry.liability += signedAmount;
+        entry.chfLiability += signedChf;
+      }
+
+      const ce = classMap.get(t.classification) ?? { count: 0, total: 0, chfTotal: 0 };
+      ce.count++;
+      ce.total += signedAmount;
+      ce.chfTotal += signedChf;
+      classMap.set(t.classification, ce);
+    }
+
+    // Fold manual adjustments into the token map
+    const adjustments = await this.prisma.accountingAdjustment.findMany({
+      where: { accountingAddressId: addressId, ...(timestampFilter ? { date: timestampFilter } : {}) },
+    });
+
+    for (const adj of adjustments) {
+      // Merge into an existing token entry matched by symbol; create a new one only if none exists
+      const symLower = adj.tokenSymbol?.toLowerCase();
+      let tokenKey = symLower
+        ? [...tokenMap.keys()].find(k => tokenMap.get(k)!.tokenSymbol?.toLowerCase() === symLower)
+        : undefined;
+      if (!tokenKey) {
+        tokenKey = `__adj__:${adj.tokenSymbol ?? '__general__'}`;
+        tokenMap.set(tokenKey, { tokenSymbol: adj.tokenSymbol, tokenAddress: null, asset: 0, liability: 0, chfAsset: 0, chfLiability: 0 });
+      }
+      const entry = tokenMap.get(tokenKey)!;
+
+      const amount = parseFloat(adj.amount ?? '0') || 0;
+      const chf = parseFloat(adj.chfValue ?? '0') || 0;
+
+      if (adj.type === 'PROFIT') {
+        entry.asset    += amount;
+        entry.chfAsset += chf;
+      } else if (adj.type === 'LOSS') {
+        entry.asset    -= amount;
+        entry.chfAsset -= chf;
+      } else if (adj.type === 'BORROW') {
+        entry.liability    -= amount;
+        entry.chfLiability -= chf;
+      } else if (adj.type === 'REPAYMENT') {
+        entry.liability    += amount;
+        entry.chfLiability += chf;
+      }
+
+      // Surface in byClassification as INCOME (received) or EXPENSE (sent out)
+      const isPositive = adj.type === 'PROFIT' || adj.type === 'BORROW';
+      const adjClass = isPositive ? TransferClassification.INCOME : TransferClassification.EXPENSE;
+      const adjSign = isPositive ? 1 : -1;
+      const ce = classMap.get(adjClass) ?? { count: 0, total: 0, chfTotal: 0 };
+      ce.count++;
+      ce.total += adj.amount ? adjSign * (parseFloat(adj.amount) || 0) : 0;
+      ce.chfTotal += adj.chfValue ? adjSign * (parseFloat(adj.chfValue) || 0) : 0;
+      classMap.set(adjClass, ce);
+    }
+
+    const tokens = Array.from(tokenMap.values())
+      .map(t => ({ ...t, net: t.asset - t.liability, chfNet: t.chfAsset - t.chfLiability }))
+      .sort((a, b) => Math.abs(b.chfAsset) - Math.abs(a.chfAsset));
+
+    const byClassification = Array.from(classMap.entries())
+      .map(([classification, data]) => ({ classification, ...data }))
+      .sort((a, b) => b.total - a.total);
+
+    // Distinct years across all (non-hidden) transfers for this address
+    const allTimestamps = await this.prisma.accountingTransfer.findMany({
+      where: { accountingAddressId: addressId, isHidden: false, timestamp: { not: null } },
+      select: { timestamp: true },
+    });
+    const years = [...new Set(allTimestamps.map(t => t.timestamp!.getFullYear()))].sort((a, b) => b - a);
+
+    return { address: acct, tokens, byClassification, unclassifiedCount, years };
+  }
+
+  // ---------------------------------------------------------------------------
   // Legacy summary (kept for backwards compat)
   // ---------------------------------------------------------------------------
 
@@ -647,5 +849,137 @@ export class AccountingService {
       data: DEFAULT_ACCOUNTS.map(a => ({ ...a, userId })),
       skipDuplicates: true,
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Counterparty labels (global per user — address → friendly name)
+  // ---------------------------------------------------------------------------
+
+  async getCounterpartyLabels(userId: string): Promise<Record<string, string>> {
+    const rows = await this.prisma.accountingCounterpartyLabel.findMany({ where: { userId } });
+    return Object.fromEntries(rows.map(r => [r.address, r.label]));
+  }
+
+  async upsertCounterpartyLabel(userId: string, address: string, label: string | null) {
+    const normalised = address.toLowerCase();
+    if (!label) {
+      await this.prisma.accountingCounterpartyLabel.deleteMany({ where: { userId, address: normalised } });
+      return null;
+    }
+    return this.prisma.accountingCounterpartyLabel.upsert({
+      where: { userId_address: { userId, address: normalised } },
+      create: { userId, address: normalised, label },
+      update: { label },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token year-end prices (user-entered, per address + year)
+  // ---------------------------------------------------------------------------
+
+  async getTokenPrices(userId: string, addressId: string, year: number): Promise<Record<string, string>> {
+    const acct = await this.prisma.accountingAddress.findFirst({ where: { id: addressId, userId } });
+    if (!acct) throw new NotFoundException('Address not found');
+    const rows = await this.prisma.accountingTokenPrice.findMany({ where: { accountingAddressId: addressId, year } });
+    return Object.fromEntries(rows.map(r => [r.tokenSymbol, r.priceChf]));
+  }
+
+  async upsertTokenPrice(userId: string, addressId: string, year: number, tokenSymbol: string, priceChf: string | null) {
+    const acct = await this.prisma.accountingAddress.findFirst({ where: { id: addressId, userId } });
+    if (!acct) throw new NotFoundException('Address not found');
+    if (!priceChf) {
+      await this.prisma.accountingTokenPrice.deleteMany({ where: { accountingAddressId: addressId, year, tokenSymbol } });
+      return null;
+    }
+    return this.prisma.accountingTokenPrice.upsert({
+      where: { accountingAddressId_year_tokenSymbol: { accountingAddressId: addressId, year, tokenSymbol } },
+      create: { accountingAddressId: addressId, year, tokenSymbol, priceChf },
+      update: { priceChf },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Adjustments (manual corrections / profit / loss entries)
+  // ---------------------------------------------------------------------------
+
+  async getAdjustments(userId: string, addressId: string, year?: number, quarter?: number) {
+    const acct = await this.prisma.accountingAddress.findFirst({ where: { id: addressId, userId } });
+    if (!acct) throw new NotFoundException('Address not found');
+
+    let dateFilter: { gte?: Date; lt?: Date } | undefined;
+    if (year && quarter) {
+      const startMonth = (quarter - 1) * 3 + 1;
+      const endMonth = startMonth + 3;
+      dateFilter = {
+        gte: new Date(`${year}-${String(startMonth).padStart(2, '0')}-01T00:00:00.000Z`),
+        lt: endMonth > 12
+          ? new Date(`${year + 1}-01-01T00:00:00.000Z`)
+          : new Date(`${year}-${String(endMonth).padStart(2, '0')}-01T00:00:00.000Z`),
+      };
+    } else if (year) {
+      dateFilter = {
+        gte: new Date(`${year}-01-01T00:00:00.000Z`),
+        lt: new Date(`${year + 1}-01-01T00:00:00.000Z`),
+      };
+    }
+
+    return this.prisma.accountingAdjustment.findMany({
+      where: { accountingAddressId: addressId, ...(dateFilter ? { date: dateFilter } : {}) },
+      orderBy: { date: 'desc' },
+    });
+  }
+
+  async createAdjustment(
+    userId: string,
+    addressId: string,
+    body: { date?: string; type: string; tokenSymbol?: string; amount?: string; chfValue?: string; note?: string },
+  ) {
+    const acct = await this.prisma.accountingAddress.findFirst({ where: { id: addressId, userId } });
+    if (!acct) throw new NotFoundException('Address not found');
+
+    return this.prisma.accountingAdjustment.create({
+      data: {
+        accountingAddressId: addressId,
+        date: body.date ? new Date(body.date) : new Date(),
+        type: body.type,
+        tokenSymbol: body.tokenSymbol ?? null,
+        amount: body.amount ?? null,
+        chfValue: body.chfValue ?? null,
+        note: body.note ?? null,
+      },
+    });
+  }
+
+  async updateAdjustment(
+    userId: string,
+    id: string,
+    body: { date?: string; type?: string; tokenSymbol?: string | null; amount?: string | null; chfValue?: string | null; note?: string | null },
+  ) {
+    const adj = await this.prisma.accountingAdjustment.findFirst({
+      where: { id },
+      include: { accountingAddress: true },
+    });
+    if (!adj || adj.accountingAddress.userId !== userId) throw new NotFoundException('Adjustment not found');
+
+    return this.prisma.accountingAdjustment.update({
+      where: { id },
+      data: {
+        ...(body.date !== undefined ? { date: new Date(body.date) } : {}),
+        ...(body.type !== undefined ? { type: body.type } : {}),
+        ...(body.tokenSymbol !== undefined ? { tokenSymbol: body.tokenSymbol } : {}),
+        ...(body.amount !== undefined ? { amount: body.amount } : {}),
+        ...(body.chfValue !== undefined ? { chfValue: body.chfValue } : {}),
+        ...(body.note !== undefined ? { note: body.note } : {}),
+      },
+    });
+  }
+
+  async deleteAdjustment(userId: string, id: string) {
+    const adj = await this.prisma.accountingAdjustment.findFirst({
+      where: { id },
+      include: { accountingAddress: true },
+    });
+    if (!adj || adj.accountingAddress.userId !== userId) throw new NotFoundException('Adjustment not found');
+    await this.prisma.accountingAdjustment.delete({ where: { id } });
   }
 }

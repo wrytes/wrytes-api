@@ -58,6 +58,18 @@ export class AccountingController {
     return this.service.listAddresses(user.id);
   }
 
+  @Patch('addresses/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update label of a tracked address' })
+  @ApiParam({ name: 'id' })
+  updateAddress(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { label?: string | null },
+  ) {
+    return this.service.updateAddress(user.id, id, body.label ?? null);
+  }
+
   @Delete('addresses/:id')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Remove a tracked address and its transfers' })
@@ -124,6 +136,24 @@ export class AccountingController {
   @ApiParam({ name: 'id' })
   getTokenBalances(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.getTokenBalances(user.id, id);
+  }
+
+  @Get('addresses/:id/token-overview')
+  @ApiOperation({ summary: 'Per-token asset/liability/net overview and per-classification totals' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'quarter', required: false, type: Number })
+  getTokenOverview(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Query('year') year?: string,
+    @Query('quarter') quarter?: string,
+  ) {
+    return this.service.getTokenOverview(
+      user.id, id,
+      year ? parseInt(year, 10) : undefined,
+      quarter ? parseInt(quarter, 10) : undefined,
+    );
   }
 
   @Patch('transfers/:id')
@@ -310,5 +340,103 @@ export class AccountingController {
   @ApiParam({ name: 'id' })
   getJournalEntries(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.getJournalEntries(user.id, id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Counterparty labels
+  // ---------------------------------------------------------------------------
+
+  @Get('counterparty-labels')
+  @ApiOperation({ summary: 'Get all counterparty address labels for the current user' })
+  getCounterpartyLabels(@CurrentUser() user: User) {
+    return this.service.getCounterpartyLabels(user.id);
+  }
+
+  @Post('counterparty-labels')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upsert (or delete when label is null) a counterparty label' })
+  upsertCounterpartyLabel(
+    @CurrentUser() user: User,
+    @Body() body: { address: string; label: string | null },
+  ) {
+    return this.service.upsertCounterpartyLabel(user.id, body.address, body.label);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Token year-end prices
+  // ---------------------------------------------------------------------------
+
+  @Get('addresses/:id/token-prices')
+  @ApiOperation({ summary: 'Get user-entered year-end prices for all tokens of an address' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'year', required: true, type: Number })
+  getTokenPrices(@CurrentUser() user: User, @Param('id') id: string, @Query('year') year: string) {
+    return this.service.getTokenPrices(user.id, id, parseInt(year, 10));
+  }
+
+  @Post('addresses/:id/token-prices')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Upsert a year-end CHF price for a token' })
+  @ApiParam({ name: 'id' })
+  upsertTokenPrice(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { year: number; tokenSymbol: string; priceChf: string | null },
+  ) {
+    return this.service.upsertTokenPrice(user.id, id, body.year, body.tokenSymbol, body.priceChf);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Adjustments (manual corrections / profit / loss entries)
+  // ---------------------------------------------------------------------------
+
+  @Get('addresses/:id/adjustments')
+  @ApiOperation({ summary: 'List manual adjustments for an address' })
+  @ApiParam({ name: 'id' })
+  @ApiQuery({ name: 'year', required: false, type: Number })
+  @ApiQuery({ name: 'quarter', required: false, type: Number })
+  getAdjustments(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Query('year') year?: string,
+    @Query('quarter') quarter?: string,
+  ) {
+    return this.service.getAdjustments(
+      user.id, id,
+      year ? parseInt(year, 10) : undefined,
+      quarter ? parseInt(quarter, 10) : undefined,
+    );
+  }
+
+  @Post('addresses/:id/adjustments')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a manual adjustment entry' })
+  @ApiParam({ name: 'id' })
+  createAdjustment(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { date?: string; type: string; tokenSymbol?: string; amount?: string; chfValue?: string; note?: string },
+  ) {
+    return this.service.createAdjustment(user.id, id, body);
+  }
+
+  @Patch('adjustments/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Update a manual adjustment entry' })
+  @ApiParam({ name: 'id' })
+  updateAdjustment(
+    @CurrentUser() user: User,
+    @Param('id') id: string,
+    @Body() body: { date?: string; type?: string; tokenSymbol?: string | null; amount?: string | null; chfValue?: string | null; note?: string | null },
+  ) {
+    return this.service.updateAdjustment(user.id, id, body);
+  }
+
+  @Delete('adjustments/:id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a manual adjustment entry' })
+  @ApiParam({ name: 'id' })
+  deleteAdjustment(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.service.deleteAdjustment(user.id, id);
   }
 }
