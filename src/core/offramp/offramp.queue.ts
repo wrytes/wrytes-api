@@ -6,6 +6,8 @@ export interface OffRampJobData {
   executionId: string;
   /** Incremented on each polling re-enqueue; used to enforce max wait time without BullMQ retries */
   pollAttempt?: number;
+  /** Incremented each time a step is skipped due to high gas; execution resumes when gas drops */
+  gasRetryAttempt?: number;
 }
 
 // ---------------------------------------------------------------------------

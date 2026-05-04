@@ -1,39 +1,76 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createPublicClient, http } from 'viem';
+import { createPublicClient, http, parseGwei, formatGwei } from 'viem';
 import { mainnet } from 'viem/chains';
 import { ChainId, ALCHEMY_CHAIN_SLUGS } from './wallet.types';
 
+// Conservative gas cap: tip never exceeds this value; maxFeePerGas = baseFee × 1.5 + tip
+const MAX_PRIORITY_FEE_PER_GAS = parseGwei('0.2');
+// Hard base fee ceiling — conservativeGasFees() throws GasTooHighError above this
+const MAX_BASE_FEE = parseGwei('0.3');
+
+export class GasTooHighError extends Error {
+	constructor(baseFee: bigint) {
+		super(
+			`Base fee ${formatGwei(baseFee)} gwei exceeds limit of ${formatGwei(MAX_BASE_FEE)} gwei — will retry later`,
+		);
+		this.name = 'GasTooHighError';
+	}
+}
+
 type ViemPublicClient = ReturnType<typeof createPublicClient>;
 
-const CHAIN_DEFINITIONS: { chainId: ChainId; chain: Parameters<typeof createPublicClient>[0]['chain'] }[] = [
-  { chainId: 1, chain: mainnet },
-  // extend: { chainId: 100, chain: gnosis }, { chainId: 8453, chain: base }, { chainId: 42161, chain: arbitrum }
+const CHAIN_DEFINITIONS: {
+	chainId: ChainId;
+	chain: Parameters<typeof createPublicClient>[0]['chain'];
+}[] = [
+	{ chainId: 1, chain: mainnet },
+	// extend: { chainId: 100, chain: gnosis }, { chainId: 8453, chain: base }, { chainId: 42161, chain: arbitrum }
 ];
 
 @Injectable()
 export class WalletViemService {
-  private readonly clients = new Map<ChainId, ViemPublicClient>();
+	private readonly clients = new Map<ChainId, ViemPublicClient>();
 
-  constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('alchemy.apiKey', '');
+	constructor(private readonly configService: ConfigService) {
+		const apiKey = this.configService.get<string>('alchemy.apiKey', '');
 
-    for (const { chainId, chain } of CHAIN_DEFINITIONS) {
-      const slug = ALCHEMY_CHAIN_SLUGS[chainId];
-      this.clients.set(
-        chainId,
-        createPublicClient({
-          chain,
-          transport: http(`https://${slug}.g.alchemy.com/v2/${apiKey}`),
-          batch: { multicall: { wait: 200 } },
-        }),
-      );
-    }
-  }
+		for (const { chainId, chain } of CHAIN_DEFINITIONS) {
+			const slug = ALCHEMY_CHAIN_SLUGS[chainId];
+			this.clients.set(
+				chainId,
+				createPublicClient({
+					chain,
+					transport: http(
+						`https://${slug}.g.alchemy.com/v2/${apiKey}`,
+					),
+					batch: { multicall: { wait: 200 } },
+				}),
+			);
+		}
+	}
 
-  getClient(chainId: ChainId): ViemPublicClient {
-    const client = this.clients.get(chainId);
-    if (!client) throw new Error(`No public client configured for chain ${chainId}`);
-    return client;
-  }
+	getClient(chainId: ChainId): ViemPublicClient {
+		const client = this.clients.get(chainId);
+		if (!client)
+			throw new Error(`No public client configured for chain ${chainId}`);
+		return client;
+	}
+
+	async conservativeGasFees(
+		chainId: ChainId,
+	): Promise<{ maxFeePerGas: bigint; maxPriorityFeePerGas: bigint }> {
+		const block = await this.getClient(chainId).getBlock({
+			blockTag: 'latest',
+		});
+		if (!block.baseFeePerGas)
+			throw new Error(`Chain ${chainId} does not support EIP-1559`);
+		if (block.baseFeePerGas > MAX_BASE_FEE)
+			throw new GasTooHighError(block.baseFeePerGas);
+		return {
+			maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS,
+			maxFeePerGas:
+				(block.baseFeePerGas * 3n) / 2n + MAX_PRIORITY_FEE_PER_GAS,
+		};
+	}
 }
