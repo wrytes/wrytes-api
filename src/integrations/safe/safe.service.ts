@@ -103,12 +103,14 @@ export class SafeService {
 		this.logger.log(`Deploying Safe ${safeWallet.address} for user ${userId} on chain ${chainId}`);
 
 		const deployTx = await sdk.createSafeDeploymentTransaction();
+		const gasFees = await this.viemService.conservativeGasFees(chainId);
 		const hash = await this.wallet.client[chainId].sendTransaction({
 			account: this.wallet.account,
 			chain: null,
 			to: deployTx.to as `0x${string}`,
 			data: deployTx.data as `0x${string}`,
 			value: BigInt(deployTx.value ?? 0),
+			...gasFees,
 		});
 
 		await this.viemService.getClient(chainId).waitForTransactionReceipt({ hash });
@@ -166,7 +168,11 @@ export class SafeService {
 		});
 
 		const signedTx = await sdk.signTransaction(safeTx);
-		const result = await sdk.executeTransaction(signedTx);
+		const gasFees = await this.viemService.conservativeGasFees(chainId);
+		const result = await sdk.executeTransaction(signedTx, {
+			maxFeePerGas: gasFees.maxFeePerGas.toString(),
+			maxPriorityFeePerGas: gasFees.maxPriorityFeePerGas.toString(),
+		});
 		const txHash = result.hash as `0x${string}`;
 
 		this.logger.log(`Safe batch tx executed — safe: ${safeWallet.address}, ops: ${txs.length}, tx: ${txHash}`);
@@ -204,7 +210,11 @@ export class SafeService {
 		});
 
 		const signedTx = await sdk.signTransaction(safeTx);
-		const result = await sdk.executeTransaction(signedTx);
+		const gasFees = await this.viemService.conservativeGasFees(chainId);
+		const result = await sdk.executeTransaction(signedTx, {
+			maxFeePerGas: gasFees.maxFeePerGas.toString(),
+			maxPriorityFeePerGas: gasFees.maxPriorityFeePerGas.toString(),
+		});
 		const txHash = result.hash as `0x${string}`;
 
 		this.logger.log(`Safe transfer executed — safe: ${safeWallet.address}, token: ${tokenAddress}, to: ${toAddress}, tx: ${txHash}`);
