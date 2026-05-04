@@ -1,21 +1,26 @@
-import { InvoiceStatus } from '@prisma/client';
+import { OutboundInvoiceStatus } from '@prisma/client';
+
+export interface InvoiceItemDto {
+  description: string;
+  quantity: number;
+  unitPrice: number;
+}
 
 export class InvoiceResponseDto {
   id: string;
   userId: string;
-  fileName: string;
-  fileType: string;
-  status: InvoiceStatus;
-  fromName: string | null;
-  toName: string | null;
-  amount: string | null;
-  currency: string | null;
-  reference: string | null;
-  itemTags: string[];
-  safeAddress: string | null;
-  paidTxHash: string | null;
-  paidAt: Date | null;
-  error: string | null;
+  number: string;
+  status: OutboundInvoiceStatus;
+  recipientName: string;
+  recipientEmail: string | null;
+  recipientAddress: string | null;
+  currency: string;
+  issueDate: Date;
+  dueDate: Date | null;
+  notes: string | null;
+  items: InvoiceItemDto[];
+  subtotal: string;
+  total: string;
   createdAt: Date;
   updatedAt: Date;
 }
