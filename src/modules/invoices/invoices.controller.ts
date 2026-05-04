@@ -7,13 +7,10 @@ import {
   Param,
   Body,
   UseGuards,
-  UseInterceptors,
-  UploadedFile,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiParam, ApiBody } from '@nestjs/swagger';
 import { InvoicesService } from './invoices.service';
 import { ScopesGuard } from '../../common/guards/scopes.guard';
 import { RequireScopes } from '../../common/decorators/require-scopes.decorator';
@@ -29,36 +26,49 @@ export class InvoicesController {
   constructor(private readonly service: InvoicesService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Upload an invoice file for AI extraction' })
-  @ApiConsumes('multipart/form-data')
+  @ApiOperation({ summary: 'Create a new invoice' })
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['recipientName', 'items'],
       properties: {
-        file: { type: 'string', format: 'binary', description: 'Invoice file (PDF, JPEG, PNG, WEBP — max 10 MB)' },
+        recipientName:    { type: 'string' },
+        recipientEmail:   { type: 'string', nullable: true },
+        recipientAddress: { type: 'string', nullable: true },
+        currency:         { type: 'string', example: 'CHF' },
+        issueDate:        { type: 'string', format: 'date' },
+        dueDate:          { type: 'string', format: 'date', nullable: true },
+        notes:            { type: 'string', nullable: true },
+        items: {
+          type: 'array',
+          items: {
+            type: 'object',
+            required: ['description', 'quantity', 'unitPrice'],
+            properties: {
+              description: { type: 'string' },
+              quantity:    { type: 'number' },
+              unitPrice:   { type: 'number' },
+            },
+          },
+        },
       },
-      required: ['file'],
     },
   })
-  @ApiResponse({ status: 201, description: 'Invoice created, extraction queued' })
-  @UseInterceptors(FileInterceptor('file'))
-  upload(
-    @CurrentUser() user: User,
-    @UploadedFile() file: Express.Multer.File,
-  ) {
-    return this.service.upload(user.id, file);
+  @ApiResponse({ status: 201, description: 'Invoice created' })
+  create(@CurrentUser() user: User, @Body() body: Parameters<typeof this.service.create>[1]) {
+    return this.service.create(user.id, body);
   }
 
   @Get()
-  @ApiOperation({ summary: 'List own invoices (latest 50)' })
-  @ApiResponse({ status: 200, description: 'Array of invoices (no file data)' })
+  @ApiOperation({ summary: 'List own invoices' })
+  @ApiResponse({ status: 200, description: 'Array of invoices' })
   list(@CurrentUser() user: User) {
     return this.service.list(user.id);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a single invoice' })
-  @ApiParam({ name: 'id', example: 'cm9inv001xyz' })
+  @ApiParam({ name: 'id' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
   get(@CurrentUser() user: User, @Param('id') id: string) {
     return this.service.get(id, user.id);
@@ -66,54 +76,46 @@ export class InvoicesController {
 
   @Patch(':id')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update editable invoice fields' })
-  @ApiParam({ name: 'id', example: 'cm9inv001xyz' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        fromName: { type: 'string', nullable: true },
-        amount:   { type: 'string', nullable: true },
-        currency: { type: 'string', nullable: true },
-        itemTags: { type: 'array', items: { type: 'string' } },
-      },
-    },
-  })
-  updateFields(
+  @ApiOperation({ summary: 'Update a draft invoice' })
+  @ApiParam({ name: 'id' })
+  update(
     @CurrentUser() user: User,
     @Param('id') id: string,
-    @Body() body: { fromName?: string | null; amount?: string | null; currency?: string | null; itemTags?: string[] },
+    @Body() body: Parameters<typeof this.service.update>[2],
   ) {
     return this.service.update(id, user.id, body);
   }
 
+  @Patch(':id/send')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark invoice as sent' })
+  @ApiParam({ name: 'id' })
+  send(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.service.send(id, user.id);
+  }
+
   @Patch(':id/mark-paid')
   @HttpCode(HttpStatus.OK)
-  @RequireScopes('ADMIN')
-  @ApiOperation({ summary: 'Mark invoice as paid (admin)' })
-  @ApiParam({ name: 'id', example: 'cm9inv001xyz' })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      required: ['paidTxHash'],
-      properties: {
-        paidTxHash: { type: 'string', example: '0xabc123...' },
-      },
-    },
-  })
-  @ApiResponse({ status: 400, description: 'Invoice already paid' })
-  @ApiResponse({ status: 404, description: 'Invoice not found' })
-  markPaid(@Param('id') id: string, @Body('paidTxHash') paidTxHash: string) {
-    return this.service.markPaid(id, paidTxHash);
+  @ApiOperation({ summary: 'Mark invoice as paid' })
+  @ApiParam({ name: 'id' })
+  markPaid(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.service.markPaid(id, user.id);
+  }
+
+  @Patch(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Cancel an invoice' })
+  @ApiParam({ name: 'id' })
+  cancel(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.service.cancel(id, user.id);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.OK)
-  @RequireScopes('ADMIN')
-  @ApiOperation({ summary: 'Delete an invoice (admin)' })
-  @ApiParam({ name: 'id', example: 'cm9inv001xyz' })
+  @ApiOperation({ summary: 'Delete an invoice' })
+  @ApiParam({ name: 'id' })
   @ApiResponse({ status: 404, description: 'Invoice not found' })
-  delete(@Param('id') id: string) {
-    return this.service.delete(id);
+  delete(@CurrentUser() user: User, @Param('id') id: string) {
+    return this.service.delete(id, user.id);
   }
 }

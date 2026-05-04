@@ -29,6 +29,7 @@ model User {
   userWallets        UserWallet[]
   walletAuthSessions   WalletAuthSession[]
   invoices             Invoice[]
+  outboundInvoices     OutboundInvoice[]
   accountingAddresses       AccountingAddress[]
   accountingBlacklist       AccountingBlacklist[]
   accountingAccounts        AccountingAccount[]
@@ -639,6 +640,46 @@ model Invoice {
   updatedAt   DateTime      @updatedAt
 
   user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Outbound Invoices (created by user, sent to clients)
+// ---------------------------------------------------------------------------
+
+enum OutboundInvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  CANCELLED
+}
+
+model OutboundInvoice {
+  id               String                @id @default(cuid())
+  userId           String
+
+  number           String
+  status           OutboundInvoiceStatus @default(DRAFT)
+
+  recipientName    String
+  recipientEmail   String?
+  recipientAddress String?
+
+  currency         String                @default("CHF")
+  issueDate        DateTime              @default(now())
+  dueDate          DateTime?
+  notes            String?
+
+  items            Json
+  subtotal         Decimal               @db.Decimal(36, 2)
+  total            Decimal               @db.Decimal(36, 2)
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  user             User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([status])

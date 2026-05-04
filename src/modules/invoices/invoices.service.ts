@@ -1,154 +1,175 @@
-import { Injectable, NotFoundException, BadRequestException, Logger, OnModuleInit } from '@nestjs/common';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
-import { InvoiceStatus } from '@prisma/client';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { OutboundInvoiceStatus } from '@prisma/client';
 import { PrismaService } from '../../core/database/prisma.service';
-import { SafeService } from '../../integrations/safe/safe.service';
-import { INVOICES_QUEUE, InvoiceJobData } from './invoices.queue';
-import type { InvoiceResponseDto } from './dto/invoice-response.dto';
+import type { InvoiceResponseDto, InvoiceItemDto } from './dto/invoice-response.dto';
 
-const INVOICE_CHAIN_ID = 1;
-const STUCK_PROCESSING_THRESHOLD_MS = 10 * 60 * 1000; // 10 minutes
-const RESCUE_INTERVAL_MS = 60 * 1000; // check every minute
-const INVOICE_SAFE_LABEL = 'invoices';
-const ALLOWED_MIME_TYPES = [
-  'application/pdf',
-  'image/jpeg',
-  'image/png',
-  'image/webp',
-  'image/gif',
-];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+interface CreateInvoiceDto {
+  recipientName: string;
+  recipientEmail?: string;
+  recipientAddress?: string;
+  currency?: string;
+  issueDate?: string;
+  dueDate?: string;
+  notes?: string;
+  items: InvoiceItemDto[];
+}
+
+interface UpdateInvoiceDto {
+  recipientName?: string;
+  recipientEmail?: string | null;
+  recipientAddress?: string | null;
+  currency?: string;
+  issueDate?: string;
+  dueDate?: string | null;
+  notes?: string | null;
+  items?: InvoiceItemDto[];
+}
 
 @Injectable()
-export class InvoicesService implements OnModuleInit {
-  private readonly logger = new Logger(InvoicesService.name);
+export class InvoicesService {
+  constructor(private readonly prisma: PrismaService) {}
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly safe: SafeService,
-    @InjectQueue(INVOICES_QUEUE) private readonly queue: Queue<InvoiceJobData>,
-  ) {}
-
-  onModuleInit() {
-    void this.rescueStuckInvoices();
-    setInterval(() => void this.rescueStuckInvoices(), RESCUE_INTERVAL_MS);
+  private computeTotals(items: InvoiceItemDto[]): { subtotal: number; total: number } {
+    const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+    return { subtotal, total: subtotal };
   }
 
-  private async rescueStuckInvoices(): Promise<void> {
-    const threshold = new Date(Date.now() - STUCK_PROCESSING_THRESHOLD_MS);
-    const stuck = await this.prisma.invoice.findMany({
-      where: { status: InvoiceStatus.PROCESSING, processingStartedAt: { lt: threshold } },
-      select: { id: true },
-    });
-    if (stuck.length === 0) return;
-
-    this.logger.warn(`Rescuing ${stuck.length} stuck invoice(s)`);
-    for (const { id } of stuck) {
-      await this.prisma.invoice.update({
-        where: { id },
-        data: { status: InvoiceStatus.PENDING, processingStartedAt: null },
-      });
-      await this.queue.add(INVOICES_QUEUE, { invoiceId: id });
-    }
+  private async nextNumber(userId: string): Promise<string> {
+    const year = new Date().getFullYear();
+    const count = await this.prisma.outboundInvoice.count({ where: { userId } });
+    return `INV-${year}-${String(count + 1).padStart(3, '0')}`;
   }
 
-  async upload(userId: string, file: Express.Multer.File): Promise<InvoiceResponseDto> {
-    if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
-      throw new BadRequestException(`Unsupported file type: ${file.mimetype}. Allowed: PDF, JPEG, PNG, WEBP, GIF`);
+  async create(userId: string, dto: CreateInvoiceDto): Promise<InvoiceResponseDto> {
+    if (!dto.items || dto.items.length === 0) {
+      throw new BadRequestException('Invoice must have at least one line item');
     }
-    if (file.size > MAX_FILE_SIZE) {
-      throw new BadRequestException('File exceeds 10 MB limit');
-    }
+    const number = await this.nextNumber(userId);
+    const { subtotal, total } = this.computeTotals(dto.items);
 
-    const safeWallet = await this.safe.getOrCreate(userId, INVOICE_CHAIN_ID, INVOICE_SAFE_LABEL);
-
-    const invoice = await this.prisma.invoice.create({
+    const invoice = await this.prisma.outboundInvoice.create({
       data: {
         userId,
-        fileName: file.originalname,
-        fileType: file.mimetype,
-        fileData: Buffer.from(file.buffer),
-        safeAddress: safeWallet.address,
+        number,
+        recipientName: dto.recipientName,
+        recipientEmail: dto.recipientEmail ?? null,
+        recipientAddress: dto.recipientAddress ?? null,
+        currency: dto.currency ?? 'CHF',
+        issueDate: dto.issueDate ? new Date(dto.issueDate) : new Date(),
+        dueDate: dto.dueDate ? new Date(dto.dueDate) : null,
+        notes: dto.notes ?? null,
+        items: dto.items as object[],
+        subtotal,
+        total,
       },
     });
-
-    await this.queue.add(INVOICES_QUEUE, { invoiceId: invoice.id });
 
     return this.toDto(invoice);
   }
 
   async list(userId: string): Promise<InvoiceResponseDto[]> {
-    const invoices = await this.prisma.invoice.findMany({
+    const invoices = await this.prisma.outboundInvoice.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
-      take: 50,
-      omit: { fileData: true },
+      take: 100,
     });
     return invoices.map((i) => this.toDto(i));
   }
 
   async get(id: string, userId: string): Promise<InvoiceResponseDto> {
-    const invoice = await this.prisma.invoice.findFirst({
-      where: { id, userId },
-      omit: { fileData: true },
-    });
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
     return this.toDto(invoice);
   }
 
-  async update(
-    id: string,
-    userId: string,
-    data: { fromName?: string | null; amount?: string | null; currency?: string | null; itemTags?: string[] },
-  ): Promise<InvoiceResponseDto> {
-    const invoice = await this.prisma.invoice.findFirst({ where: { id, userId } });
+  async update(id: string, userId: string, dto: UpdateInvoiceDto): Promise<InvoiceResponseDto> {
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    const updated = await this.prisma.invoice.update({
-      where: { id },
-      data,
-      omit: { fileData: true },
-    });
-    return this.toDto(updated);
-  }
-
-  async markPaid(id: string, paidTxHash: string): Promise<InvoiceResponseDto> {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id }, omit: { fileData: true } });
-    if (!invoice) throw new NotFoundException('Invoice not found');
-    if (invoice.status === InvoiceStatus.PAID) {
-      throw new BadRequestException('Invoice is already marked as paid');
+    if (invoice.status !== OutboundInvoiceStatus.DRAFT) {
+      throw new BadRequestException('Only draft invoices can be edited');
     }
-    const updated = await this.prisma.invoice.update({
+
+    const items = dto.items ?? (invoice.items as unknown as InvoiceItemDto[]);
+    const { subtotal, total } = this.computeTotals(items);
+
+    const updated = await this.prisma.outboundInvoice.update({
       where: { id },
-      data: { status: InvoiceStatus.PAID, paidTxHash, paidAt: new Date() },
-      omit: { fileData: true },
+      data: {
+        ...(dto.recipientName !== undefined && { recipientName: dto.recipientName }),
+        ...(dto.recipientEmail !== undefined && { recipientEmail: dto.recipientEmail }),
+        ...(dto.recipientAddress !== undefined && { recipientAddress: dto.recipientAddress }),
+        ...(dto.currency !== undefined && { currency: dto.currency }),
+        ...(dto.issueDate !== undefined && { issueDate: new Date(dto.issueDate) }),
+        ...(dto.dueDate !== undefined && { dueDate: dto.dueDate ? new Date(dto.dueDate) : null }),
+        ...(dto.notes !== undefined && { notes: dto.notes }),
+        ...(dto.items !== undefined && { items: dto.items as object[], subtotal, total }),
+      },
+    });
+
+    return this.toDto(updated);
+  }
+
+  async send(id: string, userId: string): Promise<InvoiceResponseDto> {
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status !== OutboundInvoiceStatus.DRAFT) {
+      throw new BadRequestException('Only draft invoices can be sent');
+    }
+    const updated = await this.prisma.outboundInvoice.update({
+      where: { id },
+      data: { status: OutboundInvoiceStatus.SENT },
     });
     return this.toDto(updated);
   }
 
-  async delete(id: string): Promise<void> {
-    const invoice = await this.prisma.invoice.findUnique({ where: { id } });
+  async markPaid(id: string, userId: string): Promise<InvoiceResponseDto> {
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
     if (!invoice) throw new NotFoundException('Invoice not found');
-    await this.prisma.invoice.delete({ where: { id } });
+    if (invoice.status === OutboundInvoiceStatus.PAID) {
+      throw new BadRequestException('Invoice is already paid');
+    }
+    const updated = await this.prisma.outboundInvoice.update({
+      where: { id },
+      data: { status: OutboundInvoiceStatus.PAID },
+    });
+    return this.toDto(updated);
+  }
+
+  async cancel(id: string, userId: string): Promise<InvoiceResponseDto> {
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    if (invoice.status === OutboundInvoiceStatus.PAID) {
+      throw new BadRequestException('Paid invoices cannot be cancelled');
+    }
+    const updated = await this.prisma.outboundInvoice.update({
+      where: { id },
+      data: { status: OutboundInvoiceStatus.CANCELLED },
+    });
+    return this.toDto(updated);
+  }
+
+  async delete(id: string, userId: string): Promise<void> {
+    const invoice = await this.prisma.outboundInvoice.findFirst({ where: { id, userId } });
+    if (!invoice) throw new NotFoundException('Invoice not found');
+    await this.prisma.outboundInvoice.delete({ where: { id } });
   }
 
   private toDto(invoice: Record<string, unknown>): InvoiceResponseDto {
     return {
       id: invoice.id as string,
       userId: invoice.userId as string,
-      fileName: invoice.fileName as string,
-      fileType: invoice.fileType as string,
-      status: invoice.status as InvoiceStatus,
-      fromName: (invoice.fromName as string | null) ?? null,
-      toName: (invoice.toName as string | null) ?? null,
-      amount: invoice.amount != null ? String(invoice.amount) : null,
-      currency: (invoice.currency as string | null) ?? null,
-      reference: (invoice.reference as string | null) ?? null,
-      itemTags: (invoice.itemTags as string[]) ?? [],
-      safeAddress: (invoice.safeAddress as string | null) ?? null,
-      paidTxHash: (invoice.paidTxHash as string | null) ?? null,
-      paidAt: (invoice.paidAt as Date | null) ?? null,
-      error: (invoice.error as string | null) ?? null,
+      number: invoice.number as string,
+      status: invoice.status as OutboundInvoiceStatus,
+      recipientName: invoice.recipientName as string,
+      recipientEmail: (invoice.recipientEmail as string | null) ?? null,
+      recipientAddress: (invoice.recipientAddress as string | null) ?? null,
+      currency: invoice.currency as string,
+      issueDate: invoice.issueDate as Date,
+      dueDate: (invoice.dueDate as Date | null) ?? null,
+      notes: (invoice.notes as string | null) ?? null,
+      items: (invoice.items as InvoiceItemDto[]) ?? [],
+      subtotal: String(invoice.subtotal),
+      total: String(invoice.total),
       createdAt: invoice.createdAt as Date,
       updatedAt: invoice.updatedAt as Date,
     };
