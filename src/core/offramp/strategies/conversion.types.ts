@@ -22,11 +22,15 @@ export interface ConversionResult {
 }
 
 export interface ConversionStrategy {
+  /** Output token symbol; present when the strategy supports routing output to a custom recipient. */
+  outputSymbol?: string;
+
   execute(
     ctx: ConversionContext,
     safeWalletId: string,
     safeAddress: Address,
     chainId: ChainId,
     amount: bigint,
+    recipient?: Address,
   ): Promise<ConversionResult>;
 }

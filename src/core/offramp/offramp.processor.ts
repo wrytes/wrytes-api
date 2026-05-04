@@ -8,7 +8,7 @@ import type { Address } from 'viem';
 import { FiatCurrency } from '@prisma/client';
 import { PrismaService } from '../database/prisma.service';
 import { SafeService } from '../../integrations/safe/safe.service';
-import { WalletViemService } from '../../integrations/wallet/wallet.viem.service';
+import { WalletViemService, GasTooHighError } from '../../integrations/wallet/wallet.viem.service';
 import { OneInchService } from '../../integrations/oneinch/oneinch.service';
 import { KrakenDeposit } from '../../integrations/kraken/kraken.deposit';
 import { KrakenOrders } from '../../integrations/kraken/kraken.orders';
@@ -31,6 +31,8 @@ const DEPOSIT_POLL_DELAY_MS = 30_000;
 const DEPOSIT_POLL_MAX_ATTEMPTS = 240; // 2 hours
 const WITHDRAWAL_POLL_DELAY_MS = 60_000;
 const WITHDRAWAL_POLL_MAX_ATTEMPTS = 60; // 1 hour
+const GAS_RETRY_DELAY_MS = 5 * 60_000; // 5 minutes
+const GAS_RETRY_MAX_ATTEMPTS = 72; // 6 hours
 
 @Processor(OFFRAMP_QUEUE)
 export class OffRampProcessor extends WorkerHost {
@@ -86,6 +88,16 @@ export class OffRampProcessor extends WorkerHost {
           this.logger.warn(`Execution ${executionId} in terminal status ${execution.status} — skipping`);
       }
     } catch (err) {
+      if (err instanceof GasTooHighError) {
+        const attempt = (job.data.gasRetryAttempt ?? 0) + 1;
+        if (attempt <= GAS_RETRY_MAX_ATTEMPTS) {
+          this.logger.warn(`Execution ${executionId}: ${err.message} (retry ${attempt}/${GAS_RETRY_MAX_ATTEMPTS})`);
+          await this.queue.add(OFFRAMP_QUEUE, { executionId, gasRetryAttempt: attempt }, { delay: GAS_RETRY_DELAY_MS });
+          return;
+        }
+        this.logger.error(`Execution ${executionId}: gas remained too high after ${GAS_RETRY_MAX_ATTEMPTS} retries — failing`);
+      }
+
       const error = err instanceof Error ? err.message : String(err);
       this.logger.error(`Execution ${executionId} failed at ${execution.status}: ${error}`);
       await this.prisma.offRampExecution.update({
@@ -124,6 +136,17 @@ export class OffRampProcessor extends WorkerHost {
 
     const amount = parseUnits(execution.tokenAmount.toString(), tokenConfig.decimals);
 
+    await this.viem.conservativeGasFees(chainId);
+
+    // If the strategy outputs a Kraken-mapped token, route the swap directly to the Kraken
+    // deposit address — this saves one on-chain transfer from the Safe.
+    let krakenRecipient: Address | undefined;
+    if (strategy.outputSymbol && KRAKEN_DEPOSIT_ASSET[strategy.outputSymbol]) {
+      const depositAddress = await this.resolveKrakenDepositAddress(strategy.outputSymbol);
+      krakenRecipient = getAddress(depositAddress) as Address;
+      this.logger.log(`Routing ${strategy.outputSymbol} swap output directly to Kraken deposit address ${depositAddress}`);
+    }
+
     this.logger.log(`Converting ${execution.tokenAmount} ${execution.tokenSymbol} via strategy (safe: ${safeWallet.address})`);
 
     await this.prisma.offRampExecution.update({
@@ -139,32 +162,42 @@ export class OffRampProcessor extends WorkerHost {
       getAddress(safeWallet.address) as Address,
       chainId,
       amount,
+      krakenRecipient,
     );
 
     const outputDecimals = result.tokenSymbol === 'ETH'
       ? 18
       : (ENABLED_TOKENS.find((t) => t.symbol === result.tokenSymbol)?.decimals ?? 18);
 
+    const outputAmount = formatUnits(result.amount, outputDecimals);
+
     await this.prisma.offRampExecution.update({
       where: { id: execution.id },
       data: {
         conversionTxHash: result.txHash,
         krakenTokenSymbol: result.tokenSymbol,
-        krakenTokenAmount: formatUnits(result.amount, outputDecimals),
+        krakenTokenAmount: outputAmount,
       },
     });
 
-    const outputAmount = formatUnits(result.amount, outputDecimals);
     this.logger.log(`Conversion complete: ${execution.tokenSymbol} → ${result.tokenSymbol} (${outputAmount}) tx: ${result.txHash}`);
     this.notifyUser(execution.userId, 'Converted', `${execution.tokenAmount} ${execution.tokenSymbol} → ${outputAmount} ${result.tokenSymbol}`);
 
-    // Re-fetch with updated krakenToken fields then proceed to transfer
-    const updated = await this.prisma.offRampExecution.findUnique({
-      where: { id: execution.id },
-      include: { route: { include: { safeWallet: true, bankAccount: true } } },
-    });
-
-    await this.handleTransfer(updated);
+    if (krakenRecipient) {
+      // Funds landed directly at Kraken — no separate Safe→Kraken transfer needed
+      await this.prisma.offRampExecution.update({
+        where: { id: execution.id },
+        data: { status: 'TRANSFERRING', onChainTxHash: result.txHash },
+      });
+      await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
+    } else {
+      // Funds are still in the Safe — do the normal transfer step
+      const updated = await this.prisma.offRampExecution.findUnique({
+        where: { id: execution.id },
+        include: { route: { include: { safeWallet: true, bankAccount: true } } },
+      });
+      await this.handleTransfer(updated);
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -179,30 +212,9 @@ export class OffRampProcessor extends WorkerHost {
     const krakenSymbol: string = execution.krakenTokenSymbol ?? execution.tokenSymbol;
     const krakenAmount: string = execution.krakenTokenAmount?.toString() ?? execution.tokenAmount.toString();
 
-    const krakenAsset = KRAKEN_DEPOSIT_ASSET[krakenSymbol];
-    if (!krakenAsset) {
-      throw new Error(`Token ${krakenSymbol} has no Kraken deposit mapping. Add a conversion strategy or update KRAKEN_DEPOSIT_ASSET.`);
-    }
+    await this.viem.conservativeGasFees(safeWallet.chainId);
 
-    const methodHint = KRAKEN_DEPOSIT_METHOD_HINT[krakenSymbol];
-    const methodsRes = await this.krakenDeposit.getMethods(OPERATOR, { asset: krakenAsset });
-    if (methodsRes.error?.length) throw new Error(`Kraken deposit methods error: ${methodsRes.error.join(', ')}`);
-
-    this.logger.log(`Kraken deposit methods for ${krakenAsset}: ${methodsRes.result.map((m) => m.method).join(', ')}`);
-
-    const method = methodsRes.result.find((m) =>
-      m.method.toUpperCase().includes(methodHint.toUpperCase()),
-    );
-    if (!method) throw new Error(`No deposit method found for ${krakenAsset}. Available: ${methodsRes.result.map((m) => m.method).join(', ')}`);
-
-    const addrRes = await this.krakenDeposit.getAddresses(OPERATOR, {
-      asset: krakenAsset,
-      method: method.method,
-    });
-    if (addrRes.error?.length) throw new Error(`Kraken deposit address error: ${addrRes.error.join(', ')}`);
-
-    const depositAddress = addrRes.result[0]?.address;
-    if (!depositAddress) throw new Error('No Kraken deposit address available');
+    const depositAddress = await this.resolveKrakenDepositAddress(krakenSymbol);
 
     this.logger.log(`Transferring ${krakenAmount} ${krakenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`);
 
@@ -403,6 +415,29 @@ export class OffRampProcessor extends WorkerHost {
   // ---------------------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------------------
+  private async resolveKrakenDepositAddress(krakenSymbol: string): Promise<string> {
+    const krakenAsset = KRAKEN_DEPOSIT_ASSET[krakenSymbol];
+    if (!krakenAsset) {
+      throw new Error(`Token ${krakenSymbol} has no Kraken deposit mapping. Add a conversion strategy or update KRAKEN_DEPOSIT_ASSET.`);
+    }
+
+    const methodHint = KRAKEN_DEPOSIT_METHOD_HINT[krakenSymbol];
+    const methodsRes = await this.krakenDeposit.getMethods(OPERATOR, { asset: krakenAsset });
+    if (methodsRes.error?.length) throw new Error(`Kraken deposit methods error: ${methodsRes.error.join(', ')}`);
+
+    this.logger.log(`Kraken deposit methods for ${krakenAsset}: ${methodsRes.result.map((m) => m.method).join(', ')}`);
+
+    const method = methodsRes.result.find((m) => m.method.toUpperCase().includes(methodHint.toUpperCase()));
+    if (!method) throw new Error(`No deposit method found for ${krakenAsset}. Available: ${methodsRes.result.map((m) => m.method).join(', ')}`);
+
+    const addrRes = await this.krakenDeposit.getAddresses(OPERATOR, { asset: krakenAsset, method: method.method });
+    if (addrRes.error?.length) throw new Error(`Kraken deposit address error: ${addrRes.error.join(', ')}`);
+
+    const address = addrRes.result[0]?.address;
+    if (!address) throw new Error('No Kraken deposit address available');
+    return address;
+  }
+
   private async enqueueNext(executionId: string, delayMs: number, pollAttempt = 0) {
     await this.queue.add(
       OFFRAMP_QUEUE,

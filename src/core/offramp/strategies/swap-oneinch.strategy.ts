@@ -9,11 +9,15 @@ import { ENABLED_TOKENS } from '../../../config/tokens.config';
  * Handles approve if the Safe's allowance is insufficient.
  */
 export class SwapOneInchStrategy implements ConversionStrategy {
+  readonly outputSymbol: string;
+
   constructor(
     private readonly srcSymbol: string,
     private readonly dstSymbol: string,
     private readonly slippage = 0.5,
-  ) {}
+  ) {
+    this.outputSymbol = dstSymbol;
+  }
 
   async execute(
     ctx: ConversionContext,
@@ -21,6 +25,7 @@ export class SwapOneInchStrategy implements ConversionStrategy {
     safeAddress: Address,
     chainId: ChainId,
     amount: bigint,
+    recipient?: Address,
   ): Promise<ConversionResult> {
     const srcToken = ENABLED_TOKENS.find((t) => t.symbol === this.srcSymbol);
     const dstToken = ENABLED_TOKENS.find((t) => t.symbol === this.dstSymbol);
@@ -35,6 +40,7 @@ export class SwapOneInchStrategy implements ConversionStrategy {
     const swap = await ctx.oneinch.swap(chainId, srcAddress, dstAddress, amount, safeAddress, {
       slippage: this.slippage,
       disableEstimate: true,
+      ...(recipient ? { receiver: recipient } : {}),
     });
 
     const allowance = await ctx.oneinch.allowance(chainId, srcAddress, safeAddress);
