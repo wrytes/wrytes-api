@@ -223,7 +223,9 @@ model OffRampExecution {
   krakenDepositRef      String?
   krakenOrderId         String?
   krakenPair            String?
+  krakenFiatCurrency    String?
   krakenFiatAmount      Decimal?               @db.Decimal(18, 8)
+  krakenTradeFee        Decimal?               @db.Decimal(18, 8)
   krakenWithdrawalId    String?
   krakenWithdrawAmount  Decimal?               @db.Decimal(18, 8)
   krakenWithdrawFee     Decimal?               @db.Decimal(18, 8)

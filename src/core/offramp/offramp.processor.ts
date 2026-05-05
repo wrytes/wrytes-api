@@ -484,7 +484,9 @@ export class OffRampProcessor extends WorkerHost {
 				status: 'SOLD',
 				krakenOrderId,
 				krakenPair: pair,
+				krakenFiatCurrency: route.targetCurrency,
 				krakenFiatAmount,
+				krakenTradeFee: filledOrder.fee,
 			},
 		});
 
@@ -521,10 +523,14 @@ export class OffRampProcessor extends WorkerHost {
 			);
 		}
 
+		const grossAmount = Number(execution.krakenFiatAmount);
+		const tradeFee = Number(execution.krakenTradeFee ?? 0);
+		const withdrawAmount = (grossAmount - tradeFee).toFixed(8);
+
 		const withdrawRes = await this.krakenWithdraw.withdraw(OPERATOR, {
 			asset: fiatAsset,
 			key: withdrawKey,
-			amount: execution.krakenFiatAmount.toString(),
+			amount: withdrawAmount,
 		});
 
 		if (withdrawRes.error?.length)

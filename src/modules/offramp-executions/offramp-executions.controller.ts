@@ -152,7 +152,7 @@ export class OffRampExecutionsController {
     const execution = await this.service.settle(id, bankTransferRef);
     this.eventEmitter.emit(
       'notification',
-      new NotificationEvent(execution.userId, 'Payment sent', `Your bank transfer of ${execution.krakenWithdrawAmount ?? execution.krakenFiatAmount} has been sent. Ref: ${bankTransferRef ?? 'N/A'}`, 'success'),
+      new NotificationEvent(execution.userId, 'Payment sent', `Your bank transfer of ${execution.krakenWithdrawAmount ?? execution.krakenFiatAmount} ${execution.krakenFiatCurrency} has been sent. Ref: ${bankTransferRef ?? 'N/A'}`, 'success'),
     );
     return execution;
   }
