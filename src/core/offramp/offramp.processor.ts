@@ -33,6 +33,7 @@ import {
 } from './offramp.queue';
 
 const OPERATOR = 'operator';
+const ENQUEUE_NEXT_DELAY_MS = 60_000; // 1 minutes
 const DEPOSIT_POLL_DELAY_MS = 5 * 60_000; // 5 minutes
 const DEPOSIT_POLL_MAX_ATTEMPTS = 1_440; // 5 days
 const WITHDRAWAL_POLL_DELAY_MS = 5 * 60_000; // 5 minutes
@@ -82,24 +83,18 @@ export class OffRampProcessor extends WorkerHost {
 					await this.handleDetected(execution);
 					break;
 				case 'CONVERTING': {
-					const strategy = this.registry.get(execution.depositTokenSymbol);
-					if (execution.conversionTxHash) {
-						// Conversion already done — retry the pending transfer
-						await this.handleTransfer(
-							execution,
-							job.data.gasRetryAttempt ?? 0,
+					const strategy = this.registry.get(
+						execution.depositTokenSymbol,
+					);
+					if (!strategy)
+						throw new Error(
+							`No strategy found for ${execution.depositTokenSymbol} in CONVERTING state`,
 						);
-					} else {
-						if (!strategy)
-							throw new Error(
-								`No strategy found for ${execution.depositTokenSymbol} in CONVERTING state`,
-							);
-						await this.handleConvert(
-							execution,
-							strategy,
-							job.data.gasRetryAttempt ?? 0,
-						);
-					}
+					await this.handleConvert(
+						execution,
+						strategy,
+						job.data.gasRetryAttempt ?? 0,
+					);
 					break;
 				}
 				case 'TRANSFERRING':
@@ -283,7 +278,7 @@ export class OffRampProcessor extends WorkerHost {
 						transferTxHash: result.txHash,
 					},
 				});
-				await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
+				await this.enqueueNext(execution.id, ENQUEUE_NEXT_DELAY_MS);
 			} else {
 				// Funds are still in the Safe — proceed to transfer (status stays CONVERTING until handleTransfer sets TRANSFERRING)
 				const updated = await this.prisma.offRampExecution.findUnique({
@@ -380,7 +375,7 @@ export class OffRampProcessor extends WorkerHost {
 				data: { transferTxHash: txHash },
 			});
 
-			await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
+			await this.enqueueNext(execution.id, ENQUEUE_NEXT_DELAY_MS);
 		} catch (err) {
 			if (err instanceof GasTooHighError) {
 				await this.retryOnGas(
@@ -417,7 +412,8 @@ export class OffRampProcessor extends WorkerHost {
 			);
 
 		const match = statusRes.result.find(
-			(d) => d.txid === execution.transferTxHash && d.status === 'Success',
+			(d) =>
+				d.txid === execution.transferTxHash && d.status === 'Success',
 		);
 
 		if (!match) {
@@ -443,7 +439,7 @@ export class OffRampProcessor extends WorkerHost {
 			`${execution.depositTokenAmount} ${execution.depositTokenSymbol} confirmed on Kraken — swapping to fiat.`,
 		);
 
-		await this.enqueueNext(execution.id, 0);
+		await this.enqueueNext(execution.id, ENQUEUE_NEXT_DELAY_MS / 20); // fast execution on kraken
 	}
 
 	// ---------------------------------------------------------------------------
@@ -472,12 +468,13 @@ export class OffRampProcessor extends WorkerHost {
 			`Placing sell order — pair: ${pair}, volume: ${krakenAmount}`,
 		);
 
-		const { krakenOrderId, order: filledOrder } = await this.krakenOrders.placeAndWait(OPERATOR, {
-			ordertype: 'market',
-			type: 'sell',
-			pair,
-			volume: krakenAmount,
-		});
+		const { krakenOrderId, order: filledOrder } =
+			await this.krakenOrders.placeAndWait(OPERATOR, {
+				ordertype: 'market',
+				type: 'sell',
+				pair,
+				volume: krakenAmount,
+			});
 
 		const krakenFiatAmount = filledOrder.cost;
 
@@ -497,7 +494,7 @@ export class OffRampProcessor extends WorkerHost {
 			`${execution.depositTokenAmount} ${execution.depositTokenSymbol} → ${krakenFiatAmount} ${route.targetCurrency} — initiating bank withdrawal.`,
 		);
 
-		await this.enqueueNext(execution.id, 0);
+		await this.enqueueNext(execution.id, ENQUEUE_NEXT_DELAY_MS / 20);
 	}
 
 	// ---------------------------------------------------------------------------
@@ -543,7 +540,7 @@ export class OffRampProcessor extends WorkerHost {
 			},
 		});
 
-		await this.enqueueNext(execution.id, WITHDRAWAL_POLL_DELAY_MS);
+		await this.enqueueNext(execution.id, ENQUEUE_NEXT_DELAY_MS / 20);
 	}
 
 	// ---------------------------------------------------------------------------
