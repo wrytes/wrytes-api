@@ -74,11 +74,12 @@ export class KrakenOrders {
     });
   }
 
-  /** Place an order and wait for it to settle. Returns the final order state. */
-  async placeAndWait(userId: string, data: AddOrderRequest): Promise<OpenOrder> {
-    const order = await this.addOrder(userId, data);
-    const orderId = order.result.txid[0];
-    this.logger.log(`Order placed: ${order.result.descr.order} (${orderId})`);
-    return this.waitForOrderSettled(userId, orderId);
+  /** Place an order and wait for it to settle. Returns the Kraken txid and final order state. */
+  async placeAndWait(userId: string, data: AddOrderRequest): Promise<{ krakenOrderId: string; order: OpenOrder }> {
+    const placed = await this.addOrder(userId, data);
+    const krakenOrderId = placed.result.txid[0];
+    this.logger.log(`Order placed: ${placed.result.descr.order} (${krakenOrderId})`);
+    const order = await this.waitForOrderSettled(userId, krakenOrderId);
+    return { krakenOrderId, order };
   }
 }

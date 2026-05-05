@@ -33,10 +33,10 @@ import {
 } from './offramp.queue';
 
 const OPERATOR = 'operator';
-const DEPOSIT_POLL_DELAY_MS = 60_000;
-const DEPOSIT_POLL_MAX_ATTEMPTS = 7_200; // 5 days
-const WITHDRAWAL_POLL_DELAY_MS = 60_000;
-const WITHDRAWAL_POLL_MAX_ATTEMPTS = 7_200; // 5 days
+const DEPOSIT_POLL_DELAY_MS = 5 * 60_000; // 5 minutes
+const DEPOSIT_POLL_MAX_ATTEMPTS = 1_440; // 5 days
+const WITHDRAWAL_POLL_DELAY_MS = 5 * 60_000; // 5 minutes
+const WITHDRAWAL_POLL_MAX_ATTEMPTS = 1_440; // 5 days
 const GAS_RETRY_DELAY_MS = 5 * 60_000; // 5 minutes
 const GAS_RETRY_MAX_ATTEMPTS = 1_440; // 5 days
 
@@ -82,21 +82,37 @@ export class OffRampProcessor extends WorkerHost {
 					await this.handleDetected(execution);
 					break;
 				case 'CONVERTING': {
-					const strategy = this.registry.get(execution.tokenSymbol);
+					const strategy = this.registry.get(execution.depositTokenSymbol);
 					if (execution.conversionTxHash) {
 						// Conversion already done — retry the pending transfer
-						await this.handleTransfer(execution, job.data.gasRetryAttempt ?? 0);
+						await this.handleTransfer(
+							execution,
+							job.data.gasRetryAttempt ?? 0,
+						);
 					} else {
-						if (!strategy) throw new Error(`No strategy found for ${execution.tokenSymbol} in CONVERTING state`);
-						await this.handleConvert(execution, strategy, job.data.gasRetryAttempt ?? 0);
+						if (!strategy)
+							throw new Error(
+								`No strategy found for ${execution.depositTokenSymbol} in CONVERTING state`,
+							);
+						await this.handleConvert(
+							execution,
+							strategy,
+							job.data.gasRetryAttempt ?? 0,
+						);
 					}
 					break;
 				}
 				case 'TRANSFERRING':
-					if (execution.onChainTxHash) {
-						await this.handleWaitDeposit(execution, job.data.pollAttempt ?? 0);
+					if (execution.transferTxHash) {
+						await this.handleWaitDeposit(
+							execution,
+							job.data.pollAttempt ?? 0,
+						);
 					} else {
-						await this.handleTransfer(execution, job.data.gasRetryAttempt ?? 0);
+						await this.handleTransfer(
+							execution,
+							job.data.gasRetryAttempt ?? 0,
+						);
 					}
 					break;
 				case 'DEPOSITED':
@@ -146,14 +162,25 @@ export class OffRampProcessor extends WorkerHost {
 		this.notifyUser(
 			execution.userId,
 			'Received',
-			`${execution.tokenAmount} ${execution.tokenSymbol} received.`,
+			`${execution.depositTokenAmount} ${execution.depositTokenSymbol} received.`,
 		);
-		const strategy = this.registry.get(execution.tokenSymbol);
+		const strategy = this.registry.get(execution.depositTokenSymbol);
 		if (strategy) {
-			await this.prisma.offRampExecution.update({ where: { id: execution.id }, data: { status: 'CONVERTING' } });
+			await this.prisma.offRampExecution.update({
+				where: { id: execution.id },
+				data: { status: 'CONVERTING' },
+			});
 			await this.handleConvert(execution, strategy, 0);
 		} else {
-			await this.prisma.offRampExecution.update({ where: { id: execution.id }, data: { status: 'TRANSFERRING' } });
+			// Direct transfer — Kraken receives the same token as the deposit
+			await this.prisma.offRampExecution.update({
+				where: { id: execution.id },
+				data: {
+					status: 'TRANSFERRING',
+					krakenTokenSymbol: execution.depositTokenSymbol,
+					krakenTokenAmount: execution.depositTokenAmount,
+				},
+			});
 			await this.handleTransfer(execution, 0);
 		}
 	}
@@ -161,21 +188,25 @@ export class OffRampProcessor extends WorkerHost {
 	// ---------------------------------------------------------------------------
 	// Step 1b CONVERTING — run pre-deposit conversion strategy (unwrap, swap, redeem, …)
 	// ---------------------------------------------------------------------------
-	private async handleConvert(execution: any, strategy: any, gasRetryAttempt: number) {
+	private async handleConvert(
+		execution: any,
+		strategy: any,
+		gasRetryAttempt: number,
+	) {
 		const { route } = execution;
 		const { safeWallet } = route;
 		const chainId = safeWallet.chainId;
 
 		const tokenConfig = ENABLED_TOKENS.find(
-			(t) => t.symbol === execution.tokenSymbol,
+			(t) => t.symbol === execution.depositTokenSymbol,
 		);
 		if (!tokenConfig)
 			throw new Error(
-				`Token ${execution.tokenSymbol} not found in config`,
+				`Token ${execution.depositTokenSymbol} not found in config`,
 			);
 
 		const amount = parseUnits(
-			execution.tokenAmount.toString(),
+			execution.depositTokenAmount.toString(),
 			tokenConfig.decimals,
 		);
 
@@ -185,15 +216,28 @@ export class OffRampProcessor extends WorkerHost {
 			// If the strategy outputs a Kraken-mapped token, route the swap directly to the Kraken
 			// deposit address — this saves one on-chain transfer from the Safe.
 			let krakenRecipient: Address | undefined;
-			if (strategy.outputSymbol && KRAKEN_DEPOSIT_ASSET[strategy.outputSymbol]) {
-				const depositAddress = await this.resolveKrakenDepositAddress(strategy.outputSymbol);
+			if (
+				strategy.outputSymbol &&
+				KRAKEN_DEPOSIT_ASSET[strategy.outputSymbol]
+			) {
+				const depositAddress = await this.resolveKrakenDepositAddress(
+					strategy.outputSymbol,
+				);
 				krakenRecipient = getAddress(depositAddress) as Address;
-				this.logger.log(`Routing ${strategy.outputSymbol} swap output directly to Kraken deposit address ${depositAddress}`);
+				this.logger.log(
+					`Routing ${strategy.outputSymbol} swap output directly to Kraken deposit address ${depositAddress}`,
+				);
 			}
 
-			this.logger.log(`Converting ${execution.tokenAmount} ${execution.tokenSymbol} via strategy (safe: ${safeWallet.address})`);
+			this.logger.log(
+				`Converting ${execution.depositTokenAmount} ${execution.depositTokenSymbol} via strategy (safe: ${safeWallet.address})`,
+			);
 
-			await this.safe.ensureDeployed(execution.userId, chainId, safeWallet.label);
+			await this.safe.ensureDeployed(
+				execution.userId,
+				chainId,
+				safeWallet.label,
+			);
 
 			const result = await strategy.execute(
 				{ safe: this.safe, oneinch: this.oneinch, viem: this.viem },
@@ -207,7 +251,9 @@ export class OffRampProcessor extends WorkerHost {
 			const outputDecimals =
 				result.tokenSymbol === 'ETH'
 					? 18
-					: (ENABLED_TOKENS.find((t) => t.symbol === result.tokenSymbol)?.decimals ?? 18);
+					: (ENABLED_TOKENS.find(
+							(t) => t.symbol === result.tokenSymbol,
+						)?.decimals ?? 18);
 			const outputAmount = formatUnits(result.amount, outputDecimals);
 
 			await this.prisma.offRampExecution.update({
@@ -219,27 +265,44 @@ export class OffRampProcessor extends WorkerHost {
 				},
 			});
 
-			this.logger.log(`Conversion complete: ${execution.tokenSymbol} → ${result.tokenSymbol} (${outputAmount}) tx: ${result.txHash}`);
-			this.notifyUser(execution.userId, 'Converted', `${execution.tokenAmount} ${execution.tokenSymbol} → ${outputAmount} ${result.tokenSymbol}`);
+			this.logger.log(
+				`Conversion complete: ${execution.depositTokenSymbol} → ${result.tokenSymbol} (${outputAmount}) tx: ${result.txHash}`,
+			);
+			this.notifyUser(
+				execution.userId,
+				'Converted',
+				`${execution.depositTokenAmount} ${execution.depositTokenSymbol} → ${outputAmount} ${result.tokenSymbol}`,
+			);
 
 			if (krakenRecipient) {
 				// Funds landed directly at Kraken — no separate Safe→Kraken transfer needed
 				await this.prisma.offRampExecution.update({
 					where: { id: execution.id },
-					data: { status: 'TRANSFERRING', onChainTxHash: result.txHash },
+					data: {
+						status: 'TRANSFERRING',
+						transferTxHash: result.txHash,
+					},
 				});
 				await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
 			} else {
 				// Funds are still in the Safe — proceed to transfer (status stays CONVERTING until handleTransfer sets TRANSFERRING)
 				const updated = await this.prisma.offRampExecution.findUnique({
 					where: { id: execution.id },
-					include: { route: { include: { safeWallet: true, bankAccount: true } } },
+					include: {
+						route: {
+							include: { safeWallet: true, bankAccount: true },
+						},
+					},
 				});
 				await this.handleTransfer(updated, gasRetryAttempt);
 			}
 		} catch (err) {
 			if (err instanceof GasTooHighError) {
-				await this.retryOnGas(execution.id, gasRetryAttempt, err.message);
+				await this.retryOnGas(
+					execution.id,
+					gasRetryAttempt,
+					err.message,
+				);
 				return;
 			}
 			throw err;
@@ -254,18 +317,28 @@ export class OffRampProcessor extends WorkerHost {
 		const { safeWallet } = route;
 
 		// Use post-conversion token if available, otherwise the originally received token
-		const krakenSymbol: string = execution.krakenTokenSymbol ?? execution.tokenSymbol;
-		const krakenAmount: string = execution.krakenTokenAmount?.toString() ?? execution.tokenAmount.toString();
+		const krakenSymbol: string =
+			execution.krakenTokenSymbol ?? execution.depositTokenSymbol;
+		const krakenAmount: string =
+			execution.krakenTokenAmount?.toString() ??
+			execution.depositTokenAmount.toString();
 
 		try {
 			await this.viem.conservativeGasFees(safeWallet.chainId);
 
-			const depositAddress = await this.resolveKrakenDepositAddress(krakenSymbol);
+			const depositAddress =
+				await this.resolveKrakenDepositAddress(krakenSymbol);
 
-			this.logger.log(`Transferring ${krakenAmount} ${krakenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`);
+			this.logger.log(
+				`Transferring ${krakenAmount} ${krakenSymbol} from Safe ${safeWallet.address} to Kraken ${depositAddress}`,
+			);
 
 			// ensureDeployed is a no-op when already deployed; skipped when conversion already ran it
-			await this.safe.ensureDeployed(execution.userId, safeWallet.chainId, safeWallet.label);
+			await this.safe.ensureDeployed(
+				execution.userId,
+				safeWallet.chainId,
+				safeWallet.label,
+			);
 
 			await this.prisma.offRampExecution.update({
 				where: { id: execution.id },
@@ -276,25 +349,45 @@ export class OffRampProcessor extends WorkerHost {
 
 			if (krakenSymbol === 'ETH') {
 				const amount = parseUnits(krakenAmount, 18);
-				txHash = await this.safe.executeRaw(safeWallet.id, getAddress(depositAddress) as Address, '0x', amount);
+				txHash = await this.safe.executeRaw(
+					safeWallet.id,
+					getAddress(depositAddress) as Address,
+					'0x',
+					amount,
+				);
 			} else {
-				const tokenConfig = ENABLED_TOKENS.find((t) => t.symbol === krakenSymbol);
+				const tokenConfig = ENABLED_TOKENS.find(
+					(t) => t.symbol === krakenSymbol,
+				);
 				if (!tokenConfig?.addresses[safeWallet.chainId])
-					throw new Error(`Token ${krakenSymbol} not found in config`);
-				const tokenAddress = getAddress(tokenConfig.addresses[safeWallet.chainId]!) as Address;
+					throw new Error(
+						`Token ${krakenSymbol} not found in config`,
+					);
+				const tokenAddress = getAddress(
+					tokenConfig.addresses[safeWallet.chainId]!,
+				) as Address;
 				const amount = parseUnits(krakenAmount, tokenConfig.decimals);
-				txHash = await this.safe.executeTransfer(safeWallet.id, tokenAddress, getAddress(depositAddress) as Address, amount);
+				txHash = await this.safe.executeTransfer(
+					safeWallet.id,
+					tokenAddress,
+					getAddress(depositAddress) as Address,
+					amount,
+				);
 			}
 
 			await this.prisma.offRampExecution.update({
 				where: { id: execution.id },
-				data: { onChainTxHash: txHash },
+				data: { transferTxHash: txHash },
 			});
 
 			await this.enqueueNext(execution.id, DEPOSIT_POLL_DELAY_MS);
 		} catch (err) {
 			if (err instanceof GasTooHighError) {
-				await this.retryOnGas(execution.id, gasRetryAttempt, err.message);
+				await this.retryOnGas(
+					execution.id,
+					gasRetryAttempt,
+					err.message,
+				);
 				return;
 			}
 			throw err;
@@ -313,7 +406,7 @@ export class OffRampProcessor extends WorkerHost {
 		}
 
 		const krakenSymbol =
-			execution.krakenTokenSymbol ?? execution.tokenSymbol;
+			execution.krakenTokenSymbol ?? execution.depositTokenSymbol;
 		const krakenAsset = KRAKEN_DEPOSIT_ASSET[krakenSymbol];
 		const statusRes = await this.krakenDeposit.getStatus(OPERATOR, {
 			asset: krakenAsset,
@@ -324,7 +417,7 @@ export class OffRampProcessor extends WorkerHost {
 			);
 
 		const match = statusRes.result.find(
-			(d) => d.txid === execution.onChainTxHash && d.status === 'Success',
+			(d) => d.txid === execution.transferTxHash && d.status === 'Success',
 		);
 
 		if (!match) {
@@ -347,7 +440,7 @@ export class OffRampProcessor extends WorkerHost {
 		this.notifyUser(
 			execution.userId,
 			'Arrived at exchange',
-			`${execution.tokenAmount} ${execution.tokenSymbol} confirmed on Kraken — swapping to fiat.`,
+			`${execution.depositTokenAmount} ${execution.depositTokenSymbol} confirmed on Kraken — swapping to fiat.`,
 		);
 
 		await this.enqueueNext(execution.id, 0);
@@ -360,10 +453,10 @@ export class OffRampProcessor extends WorkerHost {
 	private async handleSell(execution: any) {
 		const { route } = execution;
 		const krakenSymbol =
-			execution.krakenTokenSymbol ?? execution.tokenSymbol;
+			execution.krakenTokenSymbol ?? execution.depositTokenSymbol;
 		const krakenAmount =
 			execution.krakenTokenAmount?.toString() ??
-			execution.tokenAmount.toString();
+			execution.depositTokenAmount.toString();
 		const pair = krakenPairFor(krakenSymbol, route.targetCurrency);
 		if (!pair)
 			throw new Error(
@@ -379,28 +472,29 @@ export class OffRampProcessor extends WorkerHost {
 			`Placing sell order — pair: ${pair}, volume: ${krakenAmount}`,
 		);
 
-		const filledOrder = await this.krakenOrders.placeAndWait(OPERATOR, {
+		const { krakenOrderId, order: filledOrder } = await this.krakenOrders.placeAndWait(OPERATOR, {
 			ordertype: 'market',
 			type: 'sell',
 			pair,
 			volume: krakenAmount,
 		});
 
-		const fiatAmount = filledOrder.cost;
+		const krakenFiatAmount = filledOrder.cost;
 
 		await this.prisma.offRampExecution.update({
 			where: { id: execution.id },
 			data: {
 				status: 'SOLD',
-				krakenOrderId: filledOrder.descr.order,
-				fiatAmount,
+				krakenOrderId,
+				krakenPair: pair,
+				krakenFiatAmount,
 			},
 		});
 
 		this.notifyUser(
 			execution.userId,
 			'Swapped to fiat',
-			`${execution.tokenAmount} ${execution.tokenSymbol} → ${fiatAmount} ${route.targetCurrency} — initiating bank withdrawal.`,
+			`${execution.depositTokenAmount} ${execution.depositTokenSymbol} → ${krakenFiatAmount} ${route.targetCurrency} — initiating bank withdrawal.`,
 		);
 
 		await this.enqueueNext(execution.id, 0);
@@ -411,7 +505,7 @@ export class OffRampProcessor extends WorkerHost {
 	// Initiate fiat withdrawal to Wrytes AG bank account
 	// ---------------------------------------------------------------------------
 	private async handleWithdraw(execution: any) {
-		const { route, fiatAmount } = execution;
+		const { route } = execution;
 		const currency = route.targetCurrency as FiatCurrency;
 
 		const fiatAsset = KRAKEN_FIAT_ASSET[currency];
@@ -433,7 +527,7 @@ export class OffRampProcessor extends WorkerHost {
 		const withdrawRes = await this.krakenWithdraw.withdraw(OPERATOR, {
 			asset: fiatAsset,
 			key: withdrawKey,
-			amount: fiatAmount.toString(),
+			amount: execution.krakenFiatAmount.toString(),
 		});
 
 		if (withdrawRes.error?.length)
@@ -497,18 +591,22 @@ export class OffRampProcessor extends WorkerHost {
 
 		await this.prisma.offRampExecution.update({
 			where: { id: execution.id },
-			data: { status: 'PENDING_BANK_TRANSFER' },
+			data: {
+				status: 'PENDING_BANK_TRANSFER',
+				krakenWithdrawAmount: match.amount,
+				krakenWithdrawFee: match.fee,
+			},
 		});
 
 		this.notifyUser(
 			execution.userId,
 			'Payment pending',
-			`${execution.fiatAmount} ${currency} received — your bank transfer is being prepared.`,
+			`${match.amount} ${currency} (fee: ${match.fee} ${currency}) is being transferred to your bank account.`,
 		);
 
 		this.notifyAdmin(
 			'Payment pending review',
-			`Execution \`${execution.id}\`\nAmount: *${execution.fiatAmount} ${currency}*\nUser: \`${execution.userId}\`\nBank: ${bankAccount.label} — \`${bankAccount.iban}\`\n\nMark as settled: \`PATCH /offramp/executions/${execution.id}/settle\``,
+			`Execution \`${execution.id}\`\nAmount: *${match.amount} ${currency}* (fee: ${match.fee} ${currency})\nUser: \`${execution.userId}\`\nBank: ${bankAccount.label} — \`${bankAccount.iban}\`\n\nMark as settled: \`PATCH /offramp/executions/${execution.id}/settle\``,
 			'warning',
 		);
 
@@ -520,14 +618,28 @@ export class OffRampProcessor extends WorkerHost {
 	// ---------------------------------------------------------------------------
 	// Helpers
 	// ---------------------------------------------------------------------------
-	private async retryOnGas(executionId: string, attempt: number, message: string) {
+	private async retryOnGas(
+		executionId: string,
+		attempt: number,
+		message: string,
+	) {
 		const next = attempt + 1;
 		if (next > GAS_RETRY_MAX_ATTEMPTS) {
-			this.logger.error(`Execution ${executionId}: gas remained too high after 5 days — failing`);
-			throw new Error(`Gas too high after ${GAS_RETRY_MAX_ATTEMPTS} attempts: ${message}`);
+			this.logger.error(
+				`Execution ${executionId}: gas remained too high after 5 days — failing`,
+			);
+			throw new Error(
+				`Gas too high after ${GAS_RETRY_MAX_ATTEMPTS} attempts: ${message}`,
+			);
 		}
-		this.logger.warn(`Execution ${executionId}: ${message} (attempt ${next}/${GAS_RETRY_MAX_ATTEMPTS})`);
-		await this.queue.add(OFFRAMP_QUEUE, { executionId, gasRetryAttempt: next }, { delay: GAS_RETRY_DELAY_MS });
+		this.logger.warn(
+			`Execution ${executionId}: ${message} (attempt ${next}/${GAS_RETRY_MAX_ATTEMPTS})`,
+		);
+		await this.queue.add(
+			OFFRAMP_QUEUE,
+			{ executionId, gasRetryAttempt: next },
+			{ delay: GAS_RETRY_DELAY_MS },
+		);
 	}
 
 	private async resolveKrakenDepositAddress(

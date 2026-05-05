@@ -24,8 +24,8 @@ export class OffRampExecutionsService {
   async create(data: {
     routeId: string;
     userId: string;
-    tokenSymbol: string;
-    tokenAmount: string;
+    depositTokenSymbol: string;
+    depositTokenAmount: string;
     depositTxHash: string;
   }) {
     return this.prisma.offRampExecution.create({ data });
@@ -36,10 +36,10 @@ export class OffRampExecutionsService {
     id: string,
     status: OffRampExecutionStatus,
     extra?: Partial<{
-      onChainTxHash: string;
+      transferTxHash: string;
       krakenDepositRef: string;
       krakenOrderId: string;
-      fiatAmount: string;
+      krakenFiatAmount: string;
       krakenWithdrawalId: string;
       error: string;
     }>,
