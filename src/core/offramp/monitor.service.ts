@@ -162,8 +162,8 @@ export class MonitorService implements OnModuleInit {
 		const execution = await this.executions.create({
 			routeId: params.routeId,
 			userId: route.userId,
-			tokenSymbol: params.tokenSymbol,
-			tokenAmount: params.tokenAmount,
+			depositTokenSymbol: params.tokenSymbol,
+			depositTokenAmount: params.tokenAmount,
 			depositTxHash: params.txHash,
 		});
 

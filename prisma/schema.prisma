@@ -212,18 +212,23 @@ model OffRampExecution {
   id                 String                 @id @default(cuid())
   routeId            String
   userId             String
-  status             OffRampExecutionStatus @default(DETECTED)
-  tokenSymbol        String
-  tokenAmount        Decimal                @db.Decimal(36, 18)
-  depositTxHash      String?                @unique
-  conversionTxHash   String?
-  krakenTokenSymbol  String?
-  krakenTokenAmount  Decimal?               @db.Decimal(36, 18)
-  onChainTxHash      String?
-  krakenDepositRef   String?
-  krakenOrderId      String?
-  fiatAmount         Decimal?               @db.Decimal(18, 8)
-  krakenWithdrawalId String?
+  status                OffRampExecutionStatus @default(DETECTED)
+  depositTokenSymbol    String
+  depositTokenAmount    Decimal                @db.Decimal(36, 18)
+  depositTxHash         String?                @unique
+  conversionTxHash      String?
+  krakenTokenSymbol     String?
+  krakenTokenAmount     Decimal?               @db.Decimal(36, 18)
+  transferTxHash        String?
+  krakenDepositRef      String?
+  krakenOrderId         String?
+  krakenPair            String?
+  krakenFiatCurrency    String?
+  krakenFiatAmount      Decimal?               @db.Decimal(18, 8)
+  krakenTradeFee        Decimal?               @db.Decimal(18, 8)
+  krakenWithdrawalId    String?
+  krakenWithdrawAmount  Decimal?               @db.Decimal(18, 8)
+  krakenWithdrawFee     Decimal?               @db.Decimal(18, 8)
   bankTransferRef    String?
   error              String?
   createdAt          DateTime               @default(now())
