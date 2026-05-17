@@ -88,6 +88,7 @@ export class AuthController {
 		schema: {
 			example: {
 				id: 'cm9abc123',
+				telegramId: '...',
 				telegramHandle: 'wrytes_user',
 				notificationsEnabled: true,
 				scopes: ['USER', 'OFFRAMP'],
@@ -162,11 +163,21 @@ export class AuthController {
 	@HttpCode(HttpStatus.OK)
 	@ApiSecurity('api-key')
 	@ApiOperation({ summary: 'Update API key label' })
-	@ApiParam({ name: 'keyId', description: 'API key ID', example: 'cm9kid789' })
+	@ApiParam({
+		name: 'keyId',
+		description: 'API key ID',
+		example: 'cm9kid789',
+	})
 	@ApiBody({
 		schema: {
 			type: 'object',
-			properties: { label: { type: 'string', nullable: true, example: 'Production server' } },
+			properties: {
+				label: {
+					type: 'string',
+					nullable: true,
+					example: 'Production server',
+				},
+			},
 			example: { label: 'Production server' },
 		},
 	})
