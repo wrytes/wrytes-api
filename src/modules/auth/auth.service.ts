@@ -1,8 +1,8 @@
 import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
+	Injectable,
+	Logger,
+	NotFoundException,
+	UnauthorizedException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../../core/database/prisma.service';
@@ -12,186 +12,215 @@ import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
-  private readonly logger = new Logger(AuthService.name);
-  private readonly BCRYPT_ROUNDS = 10;
-  private readonly KEY_ID_LENGTH = 16;
-  private readonly SECRET_LENGTH = 32;
-  private readonly MAGIC_LINK_TOKEN_LENGTH = 32;
-  private readonly MAGIC_LINK_EXPIRY_MINUTES = 15;
+	private readonly logger = new Logger(AuthService.name);
+	private readonly BCRYPT_ROUNDS = 10;
+	private readonly KEY_ID_LENGTH = 16;
+	private readonly SECRET_LENGTH = 32;
+	private readonly MAGIC_LINK_TOKEN_LENGTH = 32;
+	private readonly MAGIC_LINK_EXPIRY_MINUTES = 15;
 
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly eventEmitter: EventEmitter2,
-  ) {}
+	constructor(
+		private readonly prisma: PrismaService,
+		private readonly eventEmitter: EventEmitter2,
+	) {}
 
-  async createMagicLink(userId: string): Promise<{ token: string; expiresAt: Date }> {
-    this.logger.log(`Creating magic link for user ${userId}`);
+	async createMagicLink(
+		userId: string,
+	): Promise<{ token: string; expiresAt: Date }> {
+		this.logger.log(`Creating magic link for user ${userId}`);
 
-    const token = nanoid(this.MAGIC_LINK_TOKEN_LENGTH);
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + this.MAGIC_LINK_EXPIRY_MINUTES);
+		const token = nanoid(this.MAGIC_LINK_TOKEN_LENGTH);
+		const expiresAt = new Date();
+		expiresAt.setMinutes(
+			expiresAt.getMinutes() + this.MAGIC_LINK_EXPIRY_MINUTES,
+		);
 
-    await this.prisma.magicLink.create({ data: { userId, token, expiresAt } });
+		await this.prisma.magicLink.create({
+			data: { userId, token, expiresAt },
+		});
 
-    return { token, expiresAt };
-  }
+		return { token, expiresAt };
+	}
 
-  async verifyMagicLink(token: string): Promise<{ apiKey: string; expiresAt: Date | null }> {
-    this.logger.log('Verifying magic link');
+	async verifyMagicLink(
+		token: string,
+	): Promise<{ apiKey: string; expiresAt: Date | null }> {
+		this.logger.log('Verifying magic link');
 
-    const magicLink = await this.prisma.magicLink.findUnique({
-      where: { token },
-    });
+		const magicLink = await this.prisma.magicLink.findUnique({
+			where: { token },
+		});
 
-    if (!magicLink) throw new UnauthorizedException('Invalid magic link');
-    if (magicLink.usedAt) throw new UnauthorizedException('Magic link already used');
-    if (magicLink.expiresAt < new Date()) throw new UnauthorizedException('Magic link expired');
+		if (!magicLink) throw new UnauthorizedException('Invalid magic link');
+		if (magicLink.usedAt)
+			throw new UnauthorizedException('Magic link already used');
+		if (magicLink.expiresAt < new Date())
+			throw new UnauthorizedException('Magic link expired');
 
-    await this.prisma.magicLink.update({
-      where: { id: magicLink.id },
-      data: { usedAt: new Date() },
-    });
+		await this.prisma.magicLink.update({
+			where: { id: magicLink.id },
+			data: { usedAt: new Date() },
+		});
 
-    return this.createApiKey(magicLink.userId);
-  }
+		return this.createApiKey(magicLink.userId);
+	}
 
-  async createApiKey(
-    userId: string,
-    expiresInDays?: number,
-  ): Promise<{ apiKey: string; expiresAt: Date | null }> {
-    this.logger.log(`Creating API key for user ${userId}`);
+	async createApiKey(
+		userId: string,
+		expiresInDays?: number,
+	): Promise<{ apiKey: string; expiresAt: Date | null }> {
+		this.logger.log(`Creating API key for user ${userId}`);
 
-    const keyId = nanoid(this.KEY_ID_LENGTH);
-    const secret = nanoid(this.SECRET_LENGTH);
-    const secretHash = await bcrypt.hash(secret, this.BCRYPT_ROUNDS);
+		const keyId = nanoid(this.KEY_ID_LENGTH);
+		const secret = nanoid(this.SECRET_LENGTH);
+		const secretHash = await bcrypt.hash(secret, this.BCRYPT_ROUNDS);
 
-    let expiresAt: Date | null = null;
-    if (expiresInDays) {
-      expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + expiresInDays);
-    }
+		let expiresAt: Date | null = null;
+		if (expiresInDays) {
+			expiresAt = new Date();
+			expiresAt.setDate(expiresAt.getDate() + expiresInDays);
+		}
 
-    await this.prisma.apiKey.create({ data: { userId, keyId, secretHash, expiresAt } });
+		await this.prisma.apiKey.create({
+			data: { userId, keyId, secretHash, expiresAt },
+		});
 
-    return { apiKey: `rw_prod_${keyId}.${secret}`, expiresAt };
-  }
+		return { apiKey: `rw_prod_${keyId}.${secret}`, expiresAt };
+	}
 
-  async revokeApiKey(userId: string, keyId: string): Promise<void> {
-    const apiKey = await this.prisma.apiKey.findFirst({ where: { userId, keyId } });
+	async revokeApiKey(userId: string, keyId: string): Promise<void> {
+		const apiKey = await this.prisma.apiKey.findFirst({
+			where: { userId, keyId },
+		});
 
-    if (!apiKey) throw new NotFoundException('API key not found');
-    if (apiKey.revokedAt) {
-      this.logger.warn(`API key ${keyId} already revoked`);
-      return;
-    }
+		if (!apiKey) throw new NotFoundException('API key not found');
+		if (apiKey.revokedAt) {
+			this.logger.warn(`API key ${keyId} already revoked`);
+			return;
+		}
 
-    await this.prisma.apiKey.update({
-      where: { id: apiKey.id },
-      data: { revokedAt: new Date() },
-    });
-  }
+		await this.prisma.apiKey.update({
+			where: { id: apiKey.id },
+			data: { revokedAt: new Date() },
+		});
+	}
 
-  async listApiKeys(userId: string) {
-    return this.prisma.apiKey.findMany({
-      where: { userId, revokedAt: null },
-      select: {
-        id: true,
-        keyId: true,
-        label: true,
-        expiresAt: true,
-        lastUsedAt: true,
-        createdAt: true,
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-  }
+	async listApiKeys(userId: string) {
+		return this.prisma.apiKey.findMany({
+			where: { userId, revokedAt: null },
+			select: {
+				id: true,
+				keyId: true,
+				label: true,
+				expiresAt: true,
+				lastUsedAt: true,
+				createdAt: true,
+			},
+			orderBy: { createdAt: 'desc' },
+		});
+	}
 
-  async updateApiKeyLabel(userId: string, keyId: string, label: string | null): Promise<void> {
-    const apiKey = await this.prisma.apiKey.findFirst({ where: { userId, keyId, revokedAt: null } });
-    if (!apiKey) throw new NotFoundException('API key not found');
-    await this.prisma.apiKey.update({ where: { id: apiKey.id }, data: { label } });
-  }
+	async updateApiKeyLabel(
+		userId: string,
+		keyId: string,
+		label: string | null,
+	): Promise<void> {
+		const apiKey = await this.prisma.apiKey.findFirst({
+			where: { userId, keyId, revokedAt: null },
+		});
+		if (!apiKey) throw new NotFoundException('API key not found');
+		await this.prisma.apiKey.update({
+			where: { id: apiKey.id },
+			data: { label },
+		});
+	}
 
-  async getOrCreateUser(
-    telegramId: bigint,
-    telegramHandle?: string,
-  ): Promise<{ id: string; isNew: boolean }> {
-    let user = await this.prisma.user.findUnique({ where: { telegramId } });
-    const isNew = !user;
+	async getOrCreateUser(
+		telegramId: bigint,
+		telegramHandle?: string,
+	): Promise<{ id: string; isNew: boolean }> {
+		let user = await this.prisma.user.findUnique({ where: { telegramId } });
+		const isNew = !user;
 
-    if (!user) {
-      user = await this.prisma.user.create({ data: { telegramId, telegramHandle } });
-    } else if (telegramHandle && user.telegramHandle !== telegramHandle) {
-      user = await this.prisma.user.update({
-        where: { id: user.id },
-        data: { telegramHandle },
-      });
-    }
+		if (!user) {
+			user = await this.prisma.user.create({
+				data: { telegramId, telegramHandle },
+			});
+		} else if (telegramHandle && user.telegramHandle !== telegramHandle) {
+			user = await this.prisma.user.update({
+				where: { id: user.id },
+				data: { telegramHandle },
+			});
+		}
 
-    if (isNew) {
-      this.eventEmitter.emit(
-        'notification.admin',
-        new AdminNotificationEvent(
-          'New User',
-          `@${telegramHandle ?? 'unknown'} joined \\(Telegram ID: \`${telegramId}\`\\)`,
-          'info',
-        ),
-      );
-    }
+		if (isNew) {
+			this.eventEmitter.emit(
+				'notification.admin',
+				new AdminNotificationEvent(
+					'New User',
+					`@${telegramHandle ?? 'unknown'} joined \\(Telegram ID: \`${telegramId}\`\\)`,
+					'info',
+				),
+			);
+		}
 
-    return { id: user.id, isNew };
-  }
+		return { id: user.id, isNew };
+	}
 
-  async findUserByTelegramId(telegramId: bigint) {
-    return this.prisma.user.findUnique({ where: { telegramId } });
-  }
+	async findUserByTelegramId(telegramId: bigint) {
+		return this.prisma.user.findUnique({ where: { telegramId } });
+	}
 
-  async getCurrentUser(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        profile: true,
-        userWallets: { where: { isActive: true }, select: { address: true, label: true } },
-        scopes: { select: { scopeKey: true } },
-      },
-    });
+	async getCurrentUser(userId: string) {
+		const user = await this.prisma.user.findUnique({
+			where: { id: userId },
+			include: {
+				profile: true,
+				userWallets: {
+					where: { isActive: true },
+					select: { address: true, label: true },
+				},
+				scopes: { select: { scopeKey: true } },
+			},
+		});
 
-    if (!user) throw new NotFoundException('User not found');
+		if (!user) throw new NotFoundException('User not found');
 
-    return {
-      id: user.id,
-      telegramHandle: user.telegramHandle ?? null,
-      notificationsEnabled: user.notificationsEnabled,
-      scopes: user.scopes.map((s) => s.scopeKey),
-      wallets: user.userWallets,
-      profile: user.profile
-        ? {
-            firstName: user.profile.firstName,
-            lastName: user.profile.lastName,
-            businessName: user.profile.businessName ?? null,
-            isVerified: user.profile.isVerified,
-          }
-        : null,
-    };
-  }
+		return {
+			id: user.id,
+			telegramId: String(user.telegramId),
+			telegramHandle: user.telegramHandle ?? null,
+			notificationsEnabled: user.notificationsEnabled,
+			scopes: user.scopes.map((s) => s.scopeKey),
+			wallets: user.userWallets,
+			profile: user.profile
+				? {
+						firstName: user.profile.firstName,
+						lastName: user.profile.lastName,
+						businessName: user.profile.businessName ?? null,
+						isVerified: user.profile.isVerified,
+					}
+				: null,
+		};
+	}
 
-  async getUserScopes(userId: string): Promise<string[]> {
-    const scopes = await this.prisma.userScope.findMany({
-      where: { userId },
-      select: { scopeKey: true },
-    });
-    return scopes.map((s) => s.scopeKey);
-  }
+	async getUserScopes(userId: string): Promise<string[]> {
+		const scopes = await this.prisma.userScope.findMany({
+			where: { userId },
+			select: { scopeKey: true },
+		});
+		return scopes.map((s) => s.scopeKey);
+	}
 
-  async grantScope(userId: string, scopeKey: string): Promise<void> {
-    await this.prisma.userScope.upsert({
-      where: { userId_scopeKey: { userId, scopeKey } },
-      update: {},
-      create: { userId, scopeKey },
-    });
-  }
+	async grantScope(userId: string, scopeKey: string): Promise<void> {
+		await this.prisma.userScope.upsert({
+			where: { userId_scopeKey: { userId, scopeKey } },
+			update: {},
+			create: { userId, scopeKey },
+		});
+	}
 
-  async revokeScope(userId: string, scopeKey: string): Promise<void> {
-    await this.prisma.userScope.deleteMany({ where: { userId, scopeKey } });
-  }
+	async revokeScope(userId: string, scopeKey: string): Promise<void> {
+		await this.prisma.userScope.deleteMany({ where: { userId, scopeKey } });
+	}
 }

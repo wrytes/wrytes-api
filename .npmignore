@@ -1,0 +1,29 @@
+# Source — compiled into pkg/ by tsup
+src/
+exports/
+prisma/
+scripts/
+test/
+
+# NestJS app build output (separate from pkg/)
+dist/
+
+# Build tooling
+tsup.config.ts
+tsconfig*.json
+nest-cli.json
+*.spec.ts
+
+# Dev/infra
+.env
+.env.*
+stack*.yml
+docker-compose*
+
+# Tooling
+node_modules/
+.DS_Store
+*.log
+coverage/
+.vscode/
+.idea/

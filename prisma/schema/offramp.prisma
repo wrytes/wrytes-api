@@ -1,0 +1,94 @@
+enum FiatCurrency {
+  CHF
+  EUR
+  // USD
+}
+
+enum OffRampRouteStatus {
+  ACTIVE
+  PAUSED
+}
+
+enum OffRampExecutionStatus {
+  DETECTED
+  CONVERTING
+  TRANSFERRING
+  DEPOSITED
+  SELLING
+  SOLD
+  WITHDRAWING
+  PENDING_BANK_TRANSFER
+  SETTLED
+  FAILED
+}
+
+model BankAccount {
+  id        String       @id @default(cuid())
+  userId    String
+  iban      String       // AES-256-GCM encrypted
+  bic       String
+  currency  FiatCurrency
+  label     String       @default("default")
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  offRampRoutes OffRampRoute[]
+
+  @@unique([userId, label])
+  @@index([userId])
+}
+
+model OffRampRoute {
+  id             String             @id @default(cuid())
+  userId         String
+  label          String
+  safeWalletId   String             @unique
+  targetCurrency FiatCurrency
+  bankAccountId  String
+  status         OffRampRouteStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  safeWallet  SafeWallet       @relation(fields: [safeWalletId], references: [id])
+  bankAccount BankAccount      @relation(fields: [bankAccountId], references: [id])
+  executions  OffRampExecution[]
+
+  @@unique([userId, label])
+  @@index([userId])
+  @@index([status])
+}
+
+model OffRampExecution {
+  id                    String                 @id @default(cuid())
+  routeId               String
+  userId                String
+  status                OffRampExecutionStatus @default(DETECTED)
+  depositTokenSymbol    String
+  depositTokenAmount    Decimal                @db.Decimal(36, 18)
+  depositTxHash         String?                @unique
+  conversionTxHash      String?
+  krakenTokenSymbol     String?
+  krakenTokenAmount     Decimal?               @db.Decimal(36, 18)
+  transferTxHash        String?
+  krakenDepositRef      String?
+  krakenOrderId         String?
+  krakenPair            String?
+  krakenFiatCurrency    String?
+  krakenFiatAmount      Decimal?               @db.Decimal(18, 8)
+  krakenTradeFee        Decimal?               @db.Decimal(18, 8)
+  krakenWithdrawalId    String?
+  krakenWithdrawAmount  Decimal?               @db.Decimal(18, 8)
+  krakenWithdrawFee     Decimal?               @db.Decimal(18, 8)
+  bankTransferRef       String?
+  error                 String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  route OffRampRoute @relation(fields: [routeId], references: [id])
+
+  @@index([routeId])
+  @@index([userId])
+  @@index([status])
+}

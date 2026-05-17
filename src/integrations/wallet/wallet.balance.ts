@@ -41,7 +41,7 @@ export class WalletBalance {
   private async getChainBalance(chainId: ChainId): Promise<ChainBalance> {
     const client = this.viem.getClient(chainId);
 
-    const nativeBalance = await client.getBalance({ address: this.wallet.address });
+    const nativeBalance = await client.getBalance({ address: this.wallet.requireAccount().address });
 
     const tokenAddresses = this.tokenList.getTokenAddresses(chainId);
     const tokens: TokenBalanceMap = {};
@@ -64,7 +64,7 @@ export class WalletBalance {
             address,
             abi: erc20Abi,
             functionName: 'balanceOf',
-            args: [this.wallet.address],
+            args: [this.wallet.requireAccount().address],
           })
           .then((balance) => ({ address, balance, success: true }))
           .catch((err) => {

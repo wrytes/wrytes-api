@@ -50,7 +50,7 @@ export class SafeService {
 			isL1SafeSingleton: L1_CHAIN_IDS.includes(chainId),
 			predictedSafe: {
 				safeAccountConfig: {
-					owners: [this.wallet.address],
+					owners: [this.wallet.requireAccount().address],
 					threshold: 1,
 				},
 				safeDeploymentConfig: {
@@ -104,8 +104,8 @@ export class SafeService {
 
 		const deployTx = await sdk.createSafeDeploymentTransaction();
 		const gasFees = await this.viemService.conservativeGasFees(chainId);
-		const hash = await this.wallet.client[chainId].sendTransaction({
-			account: this.wallet.account,
+		const hash = await this.wallet.requireClient(chainId).sendTransaction({
+			account: this.wallet.requireAccount(),
 			chain: null,
 			to: deployTx.to as `0x${string}`,
 			data: deployTx.data as `0x${string}`,
