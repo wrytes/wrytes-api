@@ -3,6 +3,9 @@
 	"version": "0.0.1",
 	"author": "Wrytes",
 	"license": "MIT",
+	"prisma": {
+		"schema": "prisma/schema"
+	},
 	"main": "pkg/index.js",
 	"types": "pkg/index.d.ts",
 	"files": [

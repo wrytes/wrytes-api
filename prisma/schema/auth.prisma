@@ -1,0 +1,88 @@
+model User {
+  id                   String   @id @default(cuid())
+  telegramId           BigInt   @unique
+  telegramHandle       String?
+  notificationsEnabled Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  apiKeys              ApiKey[]
+  magicLinks           MagicLink[]
+  scopes               UserScope[]
+  safeWallets          SafeWallet[]
+  profile              UserProfile?
+  bankAccounts         BankAccount[]
+  offRampRoutes        OffRampRoute[]
+  userWallets          UserWallet[]
+  walletAuthSessions   WalletAuthSession[]
+  invoices             Invoice[]
+  outboundInvoices     OutboundInvoice[]
+  accountingAddresses       AccountingAddress[]
+  accountingBlacklist       AccountingBlacklist[]
+  accountingAccounts        AccountingAccount[]
+  classificationTemplates   ClassificationTemplate[]
+  counterpartyLabels        AccountingCounterpartyLabel[]
+}
+
+model UserProfile {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  firstName    String
+  lastName     String
+  businessName String?
+  dateOfBirth  DateTime?
+  street       String?
+  city         String?
+  postalCode   String?
+  country      String?   // ISO 3166-1 alpha-2, e.g. "CH"
+  isVerified   Boolean   @default(false)
+  verifiedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// Available scope keys: USER, ADMIN, AI, ALCHEMY, KRAKEN, DERIBIT, SAFE, OFFRAMP
+/// No entry for a user = no permission (default false).
+model Scope {
+  key         String  @id
+  description String?
+
+  users UserScope[]
+}
+
+model UserScope {
+  userId   String
+  scopeKey String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  scope Scope @relation(fields: [scopeKey], references: [key], onDelete: Cascade)
+
+  @@id([userId, scopeKey])
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  keyId      String    @unique
+  secretHash String
+  label      String?
+  expiresAt  DateTime?
+  revokedAt  DateTime?
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MagicLink {
+  id        String    @id @default(cuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
