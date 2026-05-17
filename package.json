@@ -1,12 +1,16 @@
 {
-	"name": "@wrytes/api",
+	"name": "@wrytes/wrytes-api",
 	"version": "0.0.1",
 	"author": "Wrytes",
-	"private": true,
 	"license": "MIT",
+	"main": "pkg/index.js",
+	"types": "pkg/index.d.ts",
+	"files": [
+		"pkg"
+	],
 	"homepage": "https://api.wrytes.io",
 	"repository": {
-		"url": "git+https://github.com/wrytes/api.git"
+		"url": "git+https://github.com/wrytes/wrytes-api.git"
 	},
 	"scripts": {
 		"build": "nest build",
@@ -23,6 +27,8 @@
 		"test:e2e": "jest --config ./test/jest-e2e.json",
 		"infra:up": "docker stack deploy -c stack.testing.yml wrytes-api",
 		"infra:down": "docker stack remove wrytes-api",
+		"npm:build": "npx tsup",
+		"npm:publish": "npm publish --access public",
 		"db:generate": "prisma generate",
 		"db:push": "prisma db push",
 		"db:migrate": "prisma migrate dev",
@@ -93,6 +99,7 @@
 		"ts-loader": "^9.4.3",
 		"ts-node": "^10.9.1",
 		"tsconfig-paths": "^4.2.0",
+		"tsup": "^8.5.1",
 		"typescript": "^5.1.3"
 	},
 	"jest": {
